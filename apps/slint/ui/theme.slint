@@ -1,0 +1,342 @@
+// 上班鼓励器 · Slint 设计系统（自绘控件，不依赖默认控件外观）
+
+import { ScrollView, Slider } from "std-widgets.slint";
+
+export global Tokens {
+  out property <color> bg: #f6f1ec;
+  out property <color> card: #fffdfb;
+  out property <color> ink: #20312a;
+  out property <color> text: #5b6660;
+  out property <color> muted: #8c968f;
+  out property <color> mint: #34b388;
+  out property <color> mint-deep: #2a9a74;
+  out property <color> mint-soft: #e3f4ec;
+  out property <color> green: #14523f;
+  out property <color> line: #efe8e1;
+  out property <color> line-soft: #f4eee8;
+  out property <color> field: #f8f4f0;
+  out property <color> track: #e9f0ea;
+  out property <color> danger: #c25c55;
+}
+
+export component UiCard inherits Rectangle {
+  in property <length> pad: 14px;
+  in property <length> gap: 9px;
+  border-radius: 20px;
+  background: Tokens.card;
+  border-width: 1px;
+  border-color: Tokens.line-soft;
+  drop-shadow-blur: 22px;
+  drop-shadow-color: #33503f14;
+  drop-shadow-offset-y: 8px;
+  VerticalLayout {
+    padding: root.pad;
+    spacing: root.gap;
+    @children
+  }
+}
+
+export component UiSectionTitle inherits HorizontalLayout {
+  in property <string> label;
+  in property <string> note;
+  spacing: 7px;
+  alignment: center;
+  Rectangle {
+    width: 3px;
+    height: 12px;
+    border-radius: 2px;
+    background: Tokens.mint;
+  }
+  Text {
+    text: root.label;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: Tokens.green;
+    vertical-alignment: center;
+  }
+  Rectangle { horizontal-stretch: 1; }
+  Text {
+    text: root.note;
+    font-size: 9.5px;
+    color: Tokens.muted;
+    vertical-alignment: center;
+    visible: root.note != "";
+  }
+}
+
+export component UiLabel inherits Text {
+  font-size: 11px;
+  color: Tokens.muted;
+  vertical-alignment: center;
+}
+
+export component UiHint inherits Text {
+  font-size: 9.5px;
+  color: Tokens.muted;
+  wrap: word-wrap;
+}
+
+export component UiInput inherits Rectangle {
+  in-out property <string> text;
+  in property <string> placeholder;
+  in property <bool> numeric: false;
+  height: 34px;
+  border-radius: 11px;
+  background: Tokens.field;
+  border-width: 1px;
+  border-color: Tokens.line;
+  clip: true;
+
+  states [
+    editing when input.has-focus : {
+      background: #ffffff;
+      border-color: Tokens.mint;
+    }
+  ]
+
+  input := TextInput {
+    x: 9px;
+    y: 0;
+    width: parent.width - 18px;
+    height: parent.height;
+    text <=> root.text;
+    font-size: 12px;
+    color: Tokens.ink;
+    horizontal-alignment: root.numeric ? right : left;
+    vertical-alignment: center;
+    single-line: true;
+  }
+
+  Text {
+    x: 9px;
+    y: 0;
+    width: parent.width - 18px;
+    height: parent.height;
+    text: root.placeholder;
+    font-size: 11px;
+    color: #b3b9b4;
+    vertical-alignment: center;
+    horizontal-alignment: root.numeric ? right : left;
+    visible: root.text == "" && !input.has-focus;
+  }
+}
+
+export component UiSwitch inherits Rectangle {
+  in-out property <bool> checked;
+  callback toggled();
+  width: 40px;
+  height: 23px;
+  border-radius: 12px;
+  background: root.checked ? Tokens.mint : #e3ddd6;
+
+  animate background { duration: 150ms; }
+
+  Rectangle {
+    width: 17px;
+    height: 17px;
+    y: 3px;
+    x: root.checked ? parent.width - 20px : 3px;
+    border-radius: 9px;
+    background: #ffffff;
+    drop-shadow-blur: 4px;
+    drop-shadow-color: #0000002b;
+    drop-shadow-offset-y: 1px;
+    animate x { duration: 150ms; easing: ease-out; }
+  }
+
+  TouchArea {
+    mouse-cursor: pointer;
+    clicked => {
+      root.checked = !root.checked;
+      root.toggled();
+    }
+  }
+}
+
+export component UiSegGroup inherits Rectangle {
+  height: 36px;
+  border-radius: 12px;
+  background: #f1ece6;
+  HorizontalLayout {
+    padding: 3px;
+    spacing: 2px;
+    @children
+  }
+}
+
+export component UiSegItem inherits Rectangle {
+  in property <string> label;
+  in property <bool> active: false;
+  callback clicked();
+  height: 30px;
+  border-radius: 9px;
+  background: root.active ? #ffffff : transparent;
+  drop-shadow-blur: root.active ? 6px : 0px;
+  drop-shadow-color: #2c4a3a24;
+  drop-shadow-offset-y: root.active ? 2px : 0px;
+
+  Text {
+    text: root.label;
+    font-size: 11.5px;
+    font-weight: root.active ? 700 : 400;
+    color: root.active ? Tokens.green : Tokens.muted;
+    horizontal-alignment: center;
+    vertical-alignment: center;
+  }
+
+  TouchArea {
+    mouse-cursor: pointer;
+    clicked => { root.clicked(); }
+  }
+}
+
+export component UiDayChip inherits Rectangle {
+  in property <string> label;
+  in property <bool> active: false;
+  callback clicked();
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: root.active ? Tokens.mint-soft : transparent;
+  border-width: 1px;
+  border-color: root.active ? #b9e3d0 : Tokens.line;
+
+  Text {
+    text: root.label;
+    font-size: 11px;
+    font-weight: root.active ? 700 : 400;
+    color: root.active ? Tokens.green : Tokens.muted;
+    horizontal-alignment: center;
+    vertical-alignment: center;
+  }
+
+  TouchArea {
+    mouse-cursor: pointer;
+    clicked => { root.clicked(); }
+  }
+}
+
+export component UiButton inherits Rectangle {
+  in property <string> label;
+  in property <bool> primary: false;
+  in property <bool> danger: false;
+  callback clicked();
+  height: 42px;
+  border-radius: 13px;
+  background: root.primary ? Tokens.mint : root.danger ? #f7e7e5 : transparent;
+  border-width: root.primary ? 0px : 1px;
+  border-color: root.danger ? #e7c3bf : Tokens.line;
+  drop-shadow-blur: root.primary ? 12px : 0px;
+  drop-shadow-color: #34b3883d;
+  drop-shadow-offset-y: root.primary ? 4px : 0px;
+
+  Text {
+    text: root.label;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: root.primary ? #ffffff : root.danger ? Tokens.danger : #55635b;
+    horizontal-alignment: center;
+    vertical-alignment: center;
+  }
+
+  TouchArea {
+    mouse-cursor: pointer;
+    clicked => { root.clicked(); }
+  }
+}
+
+export component UiLink inherits Rectangle {
+  in property <string> label;
+  callback clicked();
+  height: 28px;
+  min-width: 40px;
+  border-radius: 9px;
+  background: transparent;
+
+  Text {
+    text: root.label;
+    font-size: 11px;
+    color: #5b6660;
+    horizontal-alignment: center;
+    vertical-alignment: center;
+  }
+
+  TouchArea {
+    mouse-cursor: pointer;
+    clicked => { root.clicked(); }
+  }
+}
+
+export component UiPill inherits Rectangle {
+  in property <string> label;
+  in property <color> dot: #34b388;
+  in property <color> tint: #e3f4ec;
+  in property <color> ink: #14523f;
+  height: 24px;
+  border-radius: 99px;
+  background: root.tint;
+  HorizontalLayout {
+    padding-left: 9px;
+    padding-right: 10px;
+    spacing: 6px;
+    alignment: center;
+    Rectangle {
+      width: 6px;
+      height: 6px;
+      border-radius: 3px;
+      background: root.dot;
+    }
+    Text {
+      text: root.label;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: root.ink;
+      vertical-alignment: center;
+    }
+  }
+}
+
+export component UiRow inherits HorizontalLayout {
+  in property <string> label;
+  in property <string> desc;
+  height: root.desc == "" ? 34px : 46px;
+  spacing: 10px;
+  alignment: center;
+
+  VerticalLayout {
+    alignment: center;
+    spacing: 2px;
+    Text {
+      text: root.label;
+      font-size: 11.5px;
+      color: Tokens.text;
+      vertical-alignment: center;
+      visible: root.label != "";
+    }
+    Text {
+      text: root.desc;
+      font-size: 9px;
+      color: Tokens.muted;
+      vertical-alignment: center;
+      visible: root.desc != "";
+    }
+  }
+
+  Rectangle { horizontal-stretch: 1; }
+
+  @children
+}
+
+export component UiProgress inherits Rectangle {
+  in property <float> value: 0;
+  height: 8px;
+  border-radius: 4px;
+  background: Tokens.track;
+
+  Rectangle {
+    width: parent.width * Math.max(0, Math.min(1, root.value));
+    height: parent.height;
+    border-radius: 4px;
+    background: @linear-gradient(90deg, #7fd9b6 0%, #34b388 60%, #2a9a74 100%);
+  }
+}

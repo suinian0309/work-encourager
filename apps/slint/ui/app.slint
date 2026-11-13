@@ -1,0 +1,796 @@
+import { ScrollView, Slider } from "std-widgets.slint";
+import {
+  Tokens,
+  UiCard,
+  UiSectionTitle,
+  UiLabel,
+  UiHint,
+  UiInput,
+  UiSwitch,
+  UiSegGroup,
+  UiSegItem,
+  UiDayChip,
+  UiButton,
+  UiLink,
+  UiPill,
+  UiRow,
+  UiProgress
+} from "theme.slint";
+
+export component MainWindow inherits Window {
+  title: "上班鼓励器";
+  width: 380px;
+  height: 720px;
+  background: @linear-gradient(165deg, #f9f3ed 0%, #eef6f0 52%, #f9eeea 100%);
+  default-font-family: "Microsoft YaHei UI";
+  default-font-size: 12px;
+  no-frame: false;
+
+  in property <string> date-text;
+  in property <string> time-text;
+  in property <string> status-text;
+  in property <string> countdown-title;
+  in property <string> countdown-text;
+  in property <string> hint-text;
+  in property <string> earn-text;
+  in property <string> rate-text;
+  in property <string> normal-text;
+  in property <string> overtime-text;
+  in property <string> progress-text;
+  in property <float> progress;
+  in property <string> worked-text;
+  in property <string> planned-text;
+  in property <string> month-text;
+  in property <string> notice-text;
+  in property <string> primary-label;
+  in property <bool> show-settings: false;
+  in property <bool> show-history: false;
+  in property <bool> is-overtime: false;
+  in property <bool> has-overtime: false;
+  in property <string> overtime-label: "加班计薪 · 1.5×";
+  in property <bool> timer-on: true;
+  in property <[string]> history-lines;
+
+  in-out property <string> edit-start: "09:00";
+  in-out property <string> edit-end: "17:00";
+  in-out property <string> edit-lunch-start: "12:00";
+  in-out property <string> edit-lunch-end: "13:00";
+  in-out property <string> edit-daily: "120";
+  in-out property <bool> edit-overtime: true;
+  in-out property <bool> edit-fixed: false;
+  in-out property <string> edit-overtime-rate: "0";
+  in-out property <string> edit-multiplier: "1.5";
+  in-out property <float> edit-opacity: 0.92;
+  in-out property <bool> edit-always-on-top: false;
+  in-out property <string> edit-decimals: "4";
+  in-out property <string> edit-mode: "daily";
+  in-out property <string> edit-monthly: "8000";
+  in-out property <string> edit-hourly: "60";
+  in-out property <string> edit-basis: "actual";
+  in-out property <string> edit-fixed-days: "21.75";
+  in-out property <bool> edit-mon: true;
+  in-out property <bool> edit-tue: true;
+  in-out property <bool> edit-wed: true;
+  in-out property <bool> edit-thu: true;
+  in-out property <bool> edit-fri: true;
+  in-out property <bool> edit-sat: false;
+  in-out property <bool> edit-sun: false;
+  in-out property <bool> edit-break2: false;
+  in-out property <string> edit-break2-start: "18:00";
+  in-out property <string> edit-break2-end: "18:30";
+  in-out property <bool> edit-privacy: false;
+  in-out property <bool> edit-reminder: true;
+  in-out property <string> edit-reminder-min: "10";
+  in-out property <string> edit-target1-name: "奶茶";
+  in-out property <string> edit-target1-price: "18";
+  in-out property <string> edit-target2-name: "咖啡";
+  in-out property <string> edit-target2-price: "20";
+  in-out property <string> edit-target3-name: "午饭";
+  in-out property <string> edit-target3-price: "25";
+  in-out property <string> edit-target4-name: "晚饭";
+  in-out property <string> edit-target4-price: "35";
+
+  callback toggle-timer();
+  callback reset-timer();
+  callback show-float();
+  callback open-settings();
+  callback close-settings();
+  callback save-settings();
+  callback open-history();
+  callback close-history();
+  callback quit-app();
+  callback drag-window();
+  callback minimize-window();
+  callback close-window();
+
+  // ===== 主界面 =====
+  if !show-settings && !show-history : ScrollView {
+    VerticalLayout {
+      padding-left: 16px;
+      padding-right: 16px;
+      padding-top: 12px;
+      padding-bottom: 14px;
+      spacing: 9px;
+
+      HorizontalLayout {
+        spacing: 8px;
+        alignment: center;
+        Text {
+          text: root.date-text;
+          font-size: 11px;
+          color: Tokens.muted;
+          vertical-alignment: center;
+        }
+        Rectangle { horizontal-stretch: 1; }
+        UiLink { label: "设置"; width: 46px; clicked => { root.open-settings(); } }
+        UiLink { label: "历史"; width: 46px; clicked => { root.open-history(); } }
+      }
+
+      VerticalLayout {
+        spacing: 2px;
+        Text {
+          text: root.time-text;
+          font-size: 30px;
+          font-weight: 600;
+          color: Tokens.ink;
+        }
+        Text {
+          text: "把上班的每一秒，都换成看得见的收获";
+          font-size: 10.5px;
+          color: Tokens.muted;
+        }
+      }
+
+      UiCard {
+        UiRow {
+          label: "";
+          height: 24px;
+          UiPill {
+            label: root.status-text;
+            dot: root.is-overtime ? #e07a5f : root.status-text == "休息中" ? #e0a33e : Tokens.mint;
+            tint: root.is-overtime ? #f9e7e2 : root.status-text == "休息中" ? #faf1de : Tokens.mint-soft;
+            ink: root.is-overtime ? #b4543a : root.status-text == "休息中" ? #8a5f14 : Tokens.green;
+          }
+          Text {
+            text: root.overtime-label;
+            font-size: 9.5px;
+            color: Tokens.muted;
+            vertical-alignment: center;
+            visible: root.has-overtime;
+          }
+        }
+        VerticalLayout {
+          spacing: 1px;
+          Text { text: root.countdown-title; font-size: 11px; color: Tokens.text; }
+          Text {
+            text: root.countdown-text;
+            font-size: 32px;
+            font-weight: 700;
+            color: Tokens.green;
+          }
+          Text { text: root.hint-text; font-size: 9.5px; color: Tokens.muted; }
+        }
+      }
+
+      UiCard {
+        pad: 15px;
+        background: @linear-gradient(140deg, #ffffff 0%, #edf8f2 100%);
+        UiRow {
+          label: "今日已赚";
+          height: 16px;
+          Text {
+            text: "含加班";
+            font-size: 9px;
+            color: Tokens.mint-deep;
+            vertical-alignment: center;
+            visible: root.has-overtime;
+          }
+        }
+        HorizontalLayout {
+          spacing: 3px;
+          Text {
+            text: "¥";
+            font-size: 16px;
+            color: Tokens.green;
+            vertical-alignment: bottom;
+          }
+          Text {
+            text: root.earn-text;
+            font-size: 38px;
+            font-weight: 700;
+            color: Tokens.green;
+            vertical-alignment: bottom;
+          }
+        }
+        Text { text: root.rate-text; font-size: 9.5px; color: Tokens.muted; }
+        HorizontalLayout {
+          spacing: 10px;
+          Text { text: root.normal-text; font-size: 10.5px; color: Tokens.text; }
+          Text { text: root.overtime-text; font-size: 10.5px; color: Tokens.mint-deep; }
+        }
+      }
+
+      HorizontalLayout {
+        spacing: 8px;
+        UiButton {
+          label: root.primary-label;
+          primary: true;
+          horizontal-stretch: 1.35;
+          clicked => { root.toggle-timer(); }
+        }
+        UiButton {
+          label: "重置";
+          horizontal-stretch: 1;
+          clicked => { root.reset-timer(); }
+        }
+        UiButton {
+          label: "浮窗";
+          horizontal-stretch: 1;
+          clicked => { root.show-float(); }
+        }
+      }
+
+      UiCard {
+        UiRow {
+          label: "今日工作进度";
+          height: 18px;
+          Text {
+            text: root.progress-text;
+            font-size: 20px;
+            font-weight: 700;
+            color: Tokens.green;
+            vertical-alignment: bottom;
+          }
+        }
+        UiProgress { value: root.progress; }
+        Text {
+          text: "已工作 " + root.worked-text + " / 计划 " + root.planned-text + " 小时";
+          font-size: 9.5px;
+          color: Tokens.muted;
+        }
+      }
+
+      UiCard {
+        HorizontalLayout {
+          alignment: center;
+          VerticalLayout {
+            spacing: 2px;
+            Text { text: "本月累计"; font-size: 9.5px; color: Tokens.muted; }
+            Text { text: root.month-text; font-size: 21px; font-weight: 700; color: Tokens.ink; }
+            Text { text: root.notice-text; font-size: 9.5px; color: Tokens.muted; }
+          }
+          Rectangle { horizontal-stretch: 1; }
+          UiLink { label: "记录"; width: 46px; clicked => { root.open-history(); } }
+        }
+      }
+
+      Text {
+        text: "数据只保存在本机 · 原生 Rust / Slint";
+        font-size: 9px;
+        color: #9aa39d;
+        horizontal-alignment: center;
+      }
+    }
+  }
+
+  // ===== 设置页 =====
+  if show-settings : VerticalLayout {
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    spacing: 8px;
+
+    HorizontalLayout {
+      height: 34px;
+      spacing: 6px;
+      alignment: center;
+      UiLink { label: "‹"; width: 28px; clicked => { root.close-settings(); } }
+      Text {
+        text: "设置";
+        font-size: 16px;
+        font-weight: 700;
+        color: Tokens.ink;
+        vertical-alignment: center;
+      }
+      Rectangle { horizontal-stretch: 1; }
+      Text {
+        text: "修改后点保存生效";
+        font-size: 9.5px;
+        color: Tokens.muted;
+        vertical-alignment: center;
+      }
+    }
+
+    ScrollView {
+      VerticalLayout {
+        spacing: 9px;
+
+        UiCard {
+          UiSectionTitle { label: "工资设置"; note: "金额仅保存在本机"; }
+          UiSegGroup {
+            UiSegItem {
+              label: "按日薪";
+              active: root.edit-mode == "daily";
+              horizontal-stretch: 1;
+              clicked => { root.edit-mode = "daily"; }
+            }
+            UiSegItem {
+              label: "按月薪";
+              active: root.edit-mode == "monthly";
+              horizontal-stretch: 1;
+              clicked => { root.edit-mode = "monthly"; }
+            }
+            UiSegItem {
+              label: "按时薪";
+              active: root.edit-mode == "hourly";
+              horizontal-stretch: 1;
+              clicked => { root.edit-mode = "hourly"; }
+            }
+          }
+
+          UiRow {
+            label: "每日工资";
+            visible: root.edit-mode == "daily";
+            UiInput { text <=> root.edit-daily; numeric: true; width: 96px; }
+            Text { text: "元"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+          UiRow {
+            label: "月工资";
+            visible: root.edit-mode == "monthly";
+            UiInput { text <=> root.edit-monthly; numeric: true; width: 96px; }
+            Text { text: "元"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+          UiRow {
+            label: "每小时";
+            visible: root.edit-mode == "hourly";
+            UiInput { text <=> root.edit-hourly; numeric: true; width: 96px; }
+            Text { text: "元"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+
+          VerticalLayout {
+            visible: root.edit-mode == "monthly";
+            spacing: 6px;
+            UiLabel { text: "月薪折算方式"; }
+            UiSegGroup {
+              UiSegItem {
+                label: "实际工作日";
+                active: root.edit-basis == "actual";
+                horizontal-stretch: 1;
+                clicked => { root.edit-basis = "actual"; }
+              }
+              UiSegItem {
+                label: "固定天数";
+                active: root.edit-basis == "fixed";
+                horizontal-stretch: 1;
+                clicked => { root.edit-basis = "fixed"; }
+              }
+            }
+            UiRow {
+              label: "固定计薪天数";
+              visible: root.edit-basis == "fixed";
+              UiInput { text <=> root.edit-fixed-days; numeric: true; width: 78px; }
+              Text { text: "天"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+            }
+          }
+
+          UiHint {
+            text: "日薪 / 月薪按当日有效计薪时长折算；月薪可选实际工作日或固定天数。";
+          }
+        }
+
+        UiCard {
+          UiSectionTitle { label: "工作时间"; note: "跨午夜归属上班当天"; }
+          UiRow {
+            label: "上班时间";
+            UiInput { text <=> root.edit-start; width: 78px; }
+          }
+          UiRow {
+            label: "下班时间";
+            UiInput { text <=> root.edit-end; width: 78px; }
+          }
+          UiRow {
+            label: "午休开始";
+            UiInput { text <=> root.edit-lunch-start; width: 78px; }
+          }
+          UiRow {
+            label: "午休结束";
+            UiInput { text <=> root.edit-lunch-end; width: 78px; }
+          }
+          UiRow {
+            label: "第二段休息";
+            desc: "例如傍晚加餐时间";
+            UiSwitch { checked <=> root.edit-break2; }
+          }
+          UiRow {
+            label: "第二段开始";
+            visible: root.edit-break2;
+            UiInput { text <=> root.edit-break2-start; width: 78px; }
+          }
+          UiRow {
+            label: "第二段结束";
+            visible: root.edit-break2;
+            UiInput { text <=> root.edit-break2-end; width: 78px; }
+          }
+          VerticalLayout {
+            spacing: 6px;
+            UiLabel { text: "每周工作日"; }
+            HorizontalLayout {
+              spacing: 4px;
+              UiDayChip { label: "一"; active: root.edit-mon; clicked => { root.edit-mon = !root.edit-mon; } }
+              UiDayChip { label: "二"; active: root.edit-tue; clicked => { root.edit-tue = !root.edit-tue; } }
+              UiDayChip { label: "三"; active: root.edit-wed; clicked => { root.edit-wed = !root.edit-wed; } }
+              UiDayChip { label: "四"; active: root.edit-thu; clicked => { root.edit-thu = !root.edit-thu; } }
+              UiDayChip { label: "五"; active: root.edit-fri; clicked => { root.edit-fri = !root.edit-fri; } }
+              UiDayChip { label: "六"; active: root.edit-sat; clicked => { root.edit-sat = !root.edit-sat; } }
+              UiDayChip { label: "日"; active: root.edit-sun; clicked => { root.edit-sun = !root.edit-sun; } }
+            }
+          }
+        }
+
+        UiCard {
+          UiSectionTitle { label: "加班计薪"; note: "下班后自动累计"; }
+          UiRow {
+            label: "启用加班计薪";
+            desc: "关闭后下班即停止计薪";
+            UiSwitch { checked <=> root.edit-overtime; }
+          }
+          UiRow {
+            label: "使用固定时薪";
+            desc: "否则按正常时薪折算";
+            visible: root.edit-overtime;
+            UiSwitch { checked <=> root.edit-fixed; }
+          }
+          UiRow {
+            label: "加班时薪";
+            visible: root.edit-overtime && root.edit-fixed;
+            UiInput { text <=> root.edit-overtime-rate; numeric: true; width: 88px; }
+            Text { text: "元/时"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+          UiRow {
+            label: "加班倍数";
+            visible: root.edit-overtime;
+            UiInput { text <=> root.edit-multiplier; numeric: true; width: 70px; }
+            Text { text: "×"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+          UiHint {
+            text: "加班时薪 = 时薪 × 倍数；固定时薪填 0 时按基础时薪计算。";
+            visible: root.edit-overtime;
+          }
+        }
+
+        UiCard {
+          UiSectionTitle { label: "鼓励目标"; note: "按当前收入生成文案"; }
+          HorizontalLayout {
+            spacing: 6px;
+            UiInput { text <=> root.edit-target1-name; horizontal-stretch: 1; }
+            UiInput { text <=> root.edit-target1-price; numeric: true; width: 62px; }
+            Text { text: "元"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+          HorizontalLayout {
+            spacing: 6px;
+            UiInput { text <=> root.edit-target2-name; horizontal-stretch: 1; }
+            UiInput { text <=> root.edit-target2-price; numeric: true; width: 62px; }
+            Text { text: "元"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+          HorizontalLayout {
+            spacing: 6px;
+            UiInput { text <=> root.edit-target3-name; horizontal-stretch: 1; }
+            UiInput { text <=> root.edit-target3-price; numeric: true; width: 62px; }
+            Text { text: "元"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+          HorizontalLayout {
+            spacing: 6px;
+            UiInput { text <=> root.edit-target4-name; horizontal-stretch: 1; }
+            UiInput { text <=> root.edit-target4-price; numeric: true; width: 62px; }
+            Text { text: "元"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+        }
+
+        UiCard {
+          UiSectionTitle { label: "浮窗与外观"; }
+          VerticalLayout {
+            spacing: 6px;
+            HorizontalLayout {
+              spacing: 8px;
+              alignment: center;
+              UiLabel { text: "浮窗透明度"; }
+              Rectangle { horizontal-stretch: 1; }
+              Text {
+                text: round(root.edit-opacity * 100) + "%";
+                font-size: 11px;
+                font-weight: 600;
+                color: Tokens.mint-deep;
+                vertical-alignment: center;
+              }
+            }
+            UiSegGroup {
+              UiSegItem {
+                label: "60%";
+                active: Math.abs(root.edit-opacity - 0.6) < 0.02;
+                horizontal-stretch: 1;
+                clicked => { root.edit-opacity = 0.6; }
+              }
+              UiSegItem {
+                label: "80%";
+                active: Math.abs(root.edit-opacity - 0.8) < 0.02;
+                horizontal-stretch: 1;
+                clicked => { root.edit-opacity = 0.8; }
+              }
+              UiSegItem {
+                label: "92%";
+                active: Math.abs(root.edit-opacity - 0.92) < 0.02;
+                horizontal-stretch: 1;
+                clicked => { root.edit-opacity = 0.92; }
+              }
+              UiSegItem {
+                label: "100%";
+                active: root.edit-opacity >= 0.99;
+                horizontal-stretch: 1;
+                clicked => { root.edit-opacity = 1.0; }
+              }
+            }
+          }
+          UiRow {
+            label: "浮窗置顶";
+            desc: "始终显示在其他窗口上方";
+            UiSwitch { checked <=> root.edit-always-on-top; }
+          }
+          UiRow {
+            label: "隐私模式";
+            desc: "隐藏金额，保留进度";
+            UiSwitch { checked <=> root.edit-privacy; }
+          }
+          UiRow {
+            label: "下班提醒";
+            desc: "每个班次最多一次";
+            UiSwitch { checked <=> root.edit-reminder; }
+          }
+          UiRow {
+            label: "提前提醒";
+            visible: root.edit-reminder;
+            UiInput { text <=> root.edit-reminder-min; numeric: true; width: 62px; }
+            Text { text: "分钟"; font-size: 10.5px; color: Tokens.muted; vertical-alignment: center; }
+          }
+          UiRow {
+            label: "金额小数位";
+            desc: "2 – 6 位";
+            UiInput { text <=> root.edit-decimals; numeric: true; width: 54px; }
+          }
+        }
+
+        Rectangle { height: 2px; background: transparent; }
+      }
+    }
+
+    UiButton {
+      label: "保存设置";
+      primary: true;
+      clicked => { root.save-settings(); }
+    }
+  }
+
+  // ===== 历史页 =====
+  if show-history : VerticalLayout {
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 10px;
+    padding-bottom: 12px;
+    spacing: 8px;
+
+    HorizontalLayout {
+      height: 34px;
+      spacing: 6px;
+      alignment: center;
+      UiLink { label: "‹"; width: 28px; clicked => { root.close-history(); } }
+      Text {
+        text: "历史记录";
+        font-size: 16px;
+        font-weight: 700;
+        color: Tokens.ink;
+        vertical-alignment: center;
+      }
+    }
+
+    ScrollView {
+      VerticalLayout {
+        spacing: 9px;
+        UiCard {
+          Text { text: "本月合计"; font-size: 9.5px; color: Tokens.muted; }
+          Text { text: root.month-text; font-size: 26px; font-weight: 700; color: Tokens.green; }
+          Text { text: root.notice-text; font-size: 9.5px; color: Tokens.muted; }
+        }
+        for line in root.history-lines : UiCard {
+          pad: 11px;
+          Text { text: line; font-size: 10.5px; color: Tokens.text; wrap: word-wrap; }
+        }
+      }
+    }
+  }
+}
+
+// ===== 浮窗 =====
+export component FloatWindow inherits Window {
+  title: "上班鼓励器 · 浮窗";
+  width: 260px;
+  height: 152px;
+  background: #00000000;
+  default-font-family: "Microsoft YaHei UI";
+  default-font-size: 10px;
+  no-frame: true;
+  always-on-top: true;
+
+  in property <string> status-text;
+  in property <string> time-text;
+  in property <string> countdown-text;
+  in property <string> earn-text;
+  in property <string> overtime-text;
+  in property <float> progress;
+  in property <float> level: 1.0;
+  callback expand();
+  callback close-window();
+  callback drag();
+
+  Rectangle {
+    width: 100%;
+    height: 100%;
+    border-radius: 20px;
+    background: @linear-gradient(150deg, #1d2f26 0%, #101b16 100%);
+    border-width: 1px;
+    border-color: #ffffff26;
+    clip: true;
+
+    TouchArea {
+      mouse-cursor: pointer;
+      pointer-event(event) => {
+        if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+          root.drag();
+        }
+      }
+    }
+
+    Rectangle {
+      x: 118px;
+      y: -46px;
+      width: 150px;
+      height: 110px;
+      border-radius: 75px;
+      background: #34b3883d;
+    }
+
+    VerticalLayout {
+      padding-left: 13px;
+      padding-right: 13px;
+      padding-top: 10px;
+      padding-bottom: 9px;
+      spacing: 4px;
+
+      HorizontalLayout {
+        spacing: 5px;
+        alignment: center;
+        Rectangle {
+          width: 5px;
+          height: 5px;
+          border-radius: 3px;
+          background: root.progress > 0 ? #7fe3b9 : #f0bd63;
+        }
+        Text {
+          text: root.status-text;
+          font-size: 10px;
+          font-weight: 600;
+          color: #dff5e9;
+          vertical-alignment: center;
+        }
+        Rectangle { horizontal-stretch: 1; }
+        Text {
+          text: root.time-text;
+          font-size: 9px;
+          color: #eef7f1a0;
+          vertical-alignment: center;
+        }
+        Rectangle {
+          width: 20px;
+          height: 20px;
+          border-radius: 7px;
+          background: transparent;
+          Text {
+            text: "⤢";
+            font-size: 11px;
+            color: #eef7f180;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+          }
+          TouchArea { mouse-cursor: pointer; clicked => { root.expand(); } }
+        }
+        Rectangle {
+          width: 20px;
+          height: 20px;
+          border-radius: 7px;
+          background: transparent;
+          Text {
+            text: "✕";
+            font-size: 10px;
+            color: #eef7f180;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+          }
+          TouchArea { mouse-cursor: pointer; clicked => { root.close-window(); } }
+        }
+      }
+
+      HorizontalLayout {
+        spacing: 8px;
+        VerticalLayout {
+          spacing: 1px;
+          Text { text: "今日已赚"; font-size: 9px; color: #eef7f18c; }
+          HorizontalLayout {
+            spacing: 2px;
+            Text {
+              text: "¥";
+              font-size: 11px;
+              color: #7fe3b9;
+              vertical-alignment: bottom;
+            }
+            Text {
+              text: root.earn-text;
+              font-size: 26px;
+              font-weight: 700;
+              color: #7fe3b9;
+              vertical-alignment: bottom;
+            }
+          }
+        }
+        Rectangle { horizontal-stretch: 1; }
+        VerticalLayout {
+          spacing: 1px;
+          Text {
+            text: "下班倒计时";
+            font-size: 8.5px;
+            color: #eef7f180;
+            horizontal-alignment: right;
+          }
+          Text {
+            text: root.countdown-text;
+            font-size: 14px;
+            font-weight: 600;
+            color: #f2fbf6;
+            horizontal-alignment: right;
+          }
+        }
+      }
+
+      Rectangle { height: 1px; background: #ffffff1a; }
+
+      HorizontalLayout {
+        spacing: 6px;
+        alignment: center;
+        Text {
+          text: root.overtime-text;
+          font-size: 9px;
+          color: #eef7f199;
+          vertical-alignment: center;
+          overflow: elide;
+        }
+        Rectangle { horizontal-stretch: 1; }
+        Text {
+          text: round(root.progress * 100) + "%";
+          font-size: 9px;
+          color: #7fe3b9;
+          vertical-alignment: center;
+        }
+      }
+
+      Rectangle {
+        height: 3px;
+        border-radius: 2px;
+        background: #ffffff24;
+        Rectangle {
+          width: parent.width * Math.max(0, Math.min(1, root.progress));
+          height: parent.height;
+          border-radius: 2px;
+          background: #7fe3b9;
+        }
+      }
+    }
+  }
+}

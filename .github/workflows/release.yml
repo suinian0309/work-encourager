@@ -89,9 +89,38 @@ jobs:
           if-no-files-found: error
           path: artifacts/*
 
+  slint:
+    name: Slint portable
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/slint
+
+      - name: Build portable exe
+        run: cargo build --release --manifest-path apps/slint/Cargo.toml
+
+      - name: Collect installers
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}" -replace "^v", ""
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          Copy-Item apps/slint/target/release/work-encourager-slint.exe "artifacts/WorkEncourager-Slint-$ver.exe"
+          Get-ChildItem artifacts | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slint-windows
+          if-no-files-found: error
+          path: artifacts/*
+
   publish:
     name: Publish release
-    needs: [electron, tauri]
+    needs: [electron, tauri, slint]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:

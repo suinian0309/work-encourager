@@ -38,19 +38,20 @@
 - **本月累计与历史**：按工作日归档，历史记录冻结当日工资参数，改设置不影响过去
 - **托盘常驻**：显示主窗口、开关计时器、打开浮窗、退出
 
-## 两个版本
+## 三个版本
 
-同一套界面与计算引擎，两种桌面外壳，按需选择：
+同一套业务规则，三种桌面外壳：
 
-| | Electron 版 | Tauri 版 |
-| --- | --- | --- |
-| 技术栈 | Electron + Vue 3 | Tauri 2 + Rust + WebView2 |
-| 安装包 | 约 102 MB | 约 2 MB |
-| 运行内存（私有） | 约 127 MB | 约 274 MB |
-| 依赖 | 自带 Chromium | 系统 WebView2 |
-| 适合 | 追求稳定、功能完整、低内存 | 追求安装包小、快速分发 |
+| | Electron 版 | Tauri 版 | 原生 Rust（Slint）版 |
+| --- | --- | --- | --- |
+| 技术栈 | Electron + Vue 3 | Tauri 2 + Rust + WebView2 | Rust + Slint 软件渲染 |
+| 安装包 | 约 102 MB | 约 2 MB | 约 9 MB（单文件 exe） |
+| 运行内存（私有） | 约 127 MB | 约 274 MB | **约 4.7 MB** |
+| 依赖 | 自带 Chromium | 系统 WebView2 | 无 |
+| 界面观感 | ★★★★☆ | ★★★★☆ | **★★☆☆☆** |
+| 适合 | 追求稳定、功能完整、低内存 | 追求安装包小、快速分发 | 只追求极致低内存 |
 
-> 两个版本的金额、状态、历史完全一致，因为计算逻辑只有一份。
+> **关于原生 Rust（Slint）版**：它的界面是用 Slint 软件渲染器自绘的，没有 CSS、没有磨砂模糊，视觉明显不如前两个版本，功能也相对精简（无单实例、设置项较少）。**建议优先选择 Electron 或 Tauri 版**；除非你明确需要「内存占用极低」且不在意界面，否则不必选它。
 
 ## 截图
 
@@ -88,6 +89,18 @@
   <img src="docs/images/electron-history.png" width="330" alt="历史记录" />
 </p>
 
+### 原生 Rust（Slint）版
+
+界面明显更朴素，仅作低内存备选：
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/slint-main.png" width="300" alt="Slint 主界面" /><br /><sub>主界面</sub></td>
+    <td align="center"><img src="docs/images/slint-settings.png" width="300" alt="Slint 设置页" /><br /><sub>设置页</sub></td>
+    <td align="center"><img src="docs/images/slint-float.png" width="260" alt="Slint 浮窗" /><br /><sub>浮窗</sub></td>
+  </tr>
+</table>
+
 ## 下载
 
 前往 [Releases](https://github.com/suinian0309/work-encourager/releases) 下载最新版本：
@@ -97,6 +110,7 @@
 | `WorkEncourager-Electron-Setup-<version>.msi` | Electron 版安装包（约 102 MB） |
 | `WorkEncourager-Electron-<version>.zip` | Electron 版免安装压缩包 |
 | `WorkEncourager-Tauri-Setup-<version>.msi` | Tauri 版安装包（约 2 MB） |
+| `WorkEncourager-Slint-<version>.exe` | 原生 Rust 版单文件程序（约 9 MB，界面较朴素） |
 
 系统要求：Windows 10 / 11（x64）。Tauri 版需要 WebView2 Runtime，Windows 11 与较新的 Windows 10 已预装。
 
@@ -138,6 +152,13 @@ pnpm --filter @we/tauri build
 
 ```bash
 pnpm --filter @we/tauri build:gnu
+```
+
+原生 Rust（Slint）：
+
+```bash
+cargo build --release --manifest-path apps/slint/Cargo.toml
+# 产物：apps/slint/target/release/work-encourager-slint.exe
 ```
 
 ## 工资是怎么算的
@@ -193,10 +214,11 @@ work-encourager/
 │  └─ date · types · defaults · effective · api
 ├─ apps/electron/           # Electron 主进程 + Vue 渲染层
 ├─ apps/tauri/              # Tauri Rust 外壳 + Vue 渲染层
+├─ apps/slint/              # 原生 Rust + Slint（独立引擎，低内存实验版）
 └─ .github/workflows/       # 自动构建与发布
 ```
 
-两个应用都通过 `@shared/*` 别名引用核心模块，**修改计算规则只需要改一处**。
+两个 Vue 应用都通过 `@shared/*` 别名引用核心模块，**修改计算规则只需要改一处**；`apps/slint` 用 Rust 重写了同一套规则（`src/engine.rs`），与 TypeScript 版行为对齐，但属于独立实现，改动时需要同步。
 
 | 模块 | 职责 |
 | --- | --- |

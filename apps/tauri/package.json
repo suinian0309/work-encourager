@@ -1,6 +1,6 @@
 {
   "name": "@we/tauri",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "上班鼓励器 Tauri 版",
