@@ -53,54 +53,6 @@
 
 > **关于原生 Rust（Slint）版**：它的界面是用 Slint 软件渲染器自绘的，没有 CSS、没有磨砂模糊，视觉明显不如前两个版本，功能也相对精简（无单实例、设置项较少）。**建议优先选择 Electron 或 Tauri 版**；除非你明确需要「内存占用极低」且不在意界面，否则不必选它。
 
-## 截图
-
-### 主界面
-
-<p align="center">
-  <img src="docs/images/electron-main.png" width="340" alt="主界面" />
-</p>
-
-### 设置
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/electron-settings.png" width="280" alt="Electron 设置页" /><br /><sub>Electron</sub></td>
-    <td align="center"><img src="docs/images/tauri-settings.png" width="280" alt="Tauri 设置页" /><br /><sub>Tauri</sub></td>
-  </tr>
-</table>
-
-设置分为六组：工资、工作时间、加班、鼓励目标、浮窗与外观。修改后点保存；若当天已有计薪数据，会询问「从下一班次生效」还是「立即重算今天」。
-
-### 桌面浮窗
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/electron-float.png" width="260" alt="Electron 浮窗" /><br /><sub>Electron</sub></td>
-    <td align="center"><img src="docs/images/tauri-float.png" width="260" alt="Tauri 浮窗" /><br /><sub>Tauri</sub></td>
-  </tr>
-</table>
-
-浮窗只显示最重要的四项：状态、今日已赚、下班/加班倒计时、进度。双击或点展开回到主窗口，点 × 关闭后只留托盘。
-
-### 历史记录
-
-<p align="center">
-  <img src="docs/images/electron-history.png" width="330" alt="历史记录" />
-</p>
-
-### 原生 Rust（Slint）版
-
-界面明显更朴素，仅作低内存备选：
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/slint-main.png" width="300" alt="Slint 主界面" /><br /><sub>主界面</sub></td>
-    <td align="center"><img src="docs/images/slint-settings.png" width="300" alt="Slint 设置页" /><br /><sub>设置页</sub></td>
-    <td align="center"><img src="docs/images/slint-float.png" width="260" alt="Slint 浮窗" /><br /><sub>浮窗</sub></td>
-  </tr>
-</table>
-
 ## 下载
 
 前往 [Releases](https://github.com/suinian0309/work-encourager/releases) 下载最新版本：
