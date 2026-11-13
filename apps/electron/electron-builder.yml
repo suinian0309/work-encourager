@@ -20,7 +20,7 @@ win:
     - msi
     - zip
   icon: build/icon.ico
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  artifactName: WorkEncourager-Electron-${version}-${arch}.${ext}
 nsis:
   oneClick: false
   perMachine: false

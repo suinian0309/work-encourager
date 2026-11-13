@@ -1,66 +1,121 @@
 # 上班鼓励器
 
-把上班的每一秒，都换成看得见的收获。
+> 把上班的每一秒，都换成看得见的收获。
 
-一个 Windows 桌面小工具：实时显示今天已经赚了多少钱、距离下班还有多久、今日工时进度和本月累计；支持加班计薪、透明桌面浮窗、托盘常驻、本地历史记录。完全离线，不上传工资与工作数据。
+一个安静的 Windows 桌面小工具：实时显示**今天已经赚了多少钱**、**距离下班还有多久**、**今日工时进度**和**本月累计**，并用鼓励文案把枯燥的工时变成看得见的收获。
 
-本仓库包含 **两个桌面外壳**，共用同一套计算引擎：
+完全离线，无需登录，不上传任何工资与工作数据。
 
-| 应用 | 技术栈 | 安装包 | 私有内存（实测） |
-| --- | --- | ---: | ---: |
-| [`apps/electron`](apps/electron) | Electron + Vue 3 | 约 102 MB | 约 127 MB |
-| [`apps/tauri`](apps/tauri) | Tauri 2 + Rust + WebView2 | 约 2 MB | 约 274 MB |
+![platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D6?style=flat-square)
+![electron](https://img.shields.io/badge/Electron-37-47848F?style=flat-square&logo=electron&logoColor=white)
+![tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white)
+![vue](https://img.shields.io/badge/Vue-3-42B883?style=flat-square&logo=vue.js&logoColor=white)
+![typescript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![rust](https://img.shields.io/badge/Rust-1.99-000000?style=flat-square&logo=rust&logoColor=white)
+![license](https://img.shields.io/badge/license-MIT-2E8B57?style=flat-square)
 
-> 体积优先选 Tauri，内存优先选 Electron。两者数字、状态、历史完全一致，因为计算逻辑只有一份。
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/electron-main.png" width="330" alt="Electron 版主界面" /><br />
+      <sub><b>Electron 版</b> · 功能完整，界面最接近设计稿</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/tauri-main.png" width="330" alt="Tauri 版主界面" /><br />
+      <sub><b>Tauri 版</b> · 安装包约 2 MB，同一套界面</sub>
+    </td>
+  </tr>
+</table>
 
-安装包不提交到仓库，由 GitHub Actions 在打 tag 时构建并挂到 **Release**（Electron 安装包 102 MB，超过 GitHub 单文件 100 MB 限制，无法直接入库）。
+## 它能做什么
 
-## 目录结构
+- **今日已赚实时滚动**：金额由时间戳、班次、休息区间、暂停记录推导，不是按刷新次数累加
+- **下班倒计时**：真实墙上时间，跨午夜班次显示「次日」
+- **工时进度**：只统计有效计薪时长，休息与手动暂停都不计入
+- **加班计薪**：下班后自动累计，可自定义加班时薪与倍数，支持每日上限
+- **桌面浮窗**：260×152 的透明小卡片，只留状态、金额、倒计时和进度；主窗口隐藏、不占任务栏
+- **鼓励文案**：根据当前收入和消费目标生成，「再过 12 分钟，一杯奶茶就赚回来了」
+- **本月累计与历史**：按工作日归档，历史记录冻结当日工资参数，改设置不影响过去
+- **托盘常驻**：显示主窗口、开关计时器、打开浮窗、退出
 
-```text
-work-encourager/
-├─ packages/shared/        # 唯一一份核心逻辑（约 13 个模块）
-│  ├─ engine.ts            # 状态与金额计算的唯一入口
-│  ├─ schedule.ts          # 班次、休息窗口、工作日
-│  ├─ wage.ts              # Decimal 工资折算
-│  ├─ validation.ts        # 设置校验
-│  ├─ settlement.ts        # 日结与补算
-│  ├─ reminders.ts         # 下班提醒判定
-│  ├─ encouragement.ts     # 鼓励文案
-│  ├─ intervals.ts         # 区间求交/合并/扣除
-│  └─ date / types / defaults / effective / api
-├─ apps/electron/          # Electron 主进程 + Vue 渲染层
-├─ apps/tauri/             # Tauri Rust 外壳 + Vue 渲染层
-└─ .github/workflows/release.yml
-```
+## 两个版本
 
-两个 app 都通过 `@shared/*` 别名指向 `packages/shared`，**修改计算规则只需要改一处**。
+同一套界面与计算引擎，两种桌面外壳，按需选择：
 
-## 功能
+| | Electron 版 | Tauri 版 |
+| --- | --- | --- |
+| 技术栈 | Electron + Vue 3 | Tauri 2 + Rust + WebView2 |
+| 安装包 | 约 102 MB | 约 2 MB |
+| 运行内存（私有） | 约 127 MB | 约 274 MB |
+| 依赖 | 自带 Chromium | 系统 WebView2 |
+| 适合 | 追求稳定、功能完整、低内存 | 追求安装包小、快速分发 |
 
-- 主界面：日期/星期/时间、状态、上下班倒计时、今日已赚、元/秒、鼓励文案、进度条、本月累计、历史入口
-- 工资：日薪 / 月薪（按实际工作日或固定天数）/ 时薪，实时展示日/时/秒折算
-- 工作时间：上下班、多段休息（逐段计薪开关）、每周工作日、特殊日期、跨午夜班次
-- 加班：启用开关、按正常时薪或自定义时薪、倍数、每日上限
-- 浮窗：260×152 透明/主题卡片，只显示状态、今日已赚、倒计时、进度；打开后主窗口隐藏、不占任务栏
-- 设置保存：班次中/已结算时会询问「从下一班次生效」或「立即重算今天」
-- 托盘、单实例、下班提醒、隐私模式、金额小数位
-- 本地 JSON 持久化，历史记录冻结当日计算参数
+> 两个版本的金额、状态、历史完全一致，因为计算逻辑只有一份。
 
-## 开发
+## 截图
+
+### 主界面
+
+<p align="center">
+  <img src="docs/images/electron-main.png" width="340" alt="主界面" />
+</p>
+
+### 设置
+
+<p align="center">
+  <img src="docs/images/electron-settings.png" width="300" alt="设置页" />
+</p>
+
+设置分为六组：工资、工作时间、加班、鼓励目标、浮窗与外观。修改后点保存；若当天已有计薪数据，会询问「从下一班次生效」还是「立即重算今天」。
+
+### 桌面浮窗
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/electron-float.png" width="260" alt="Electron 浮窗" /><br /><sub>Electron</sub></td>
+    <td align="center"><img src="docs/images/tauri-float.png" width="260" alt="Tauri 浮窗" /><br /><sub>Tauri</sub></td>
+  </tr>
+</table>
+
+浮窗只显示最重要的四项：状态、今日已赚、下班/加班倒计时、进度。双击或点展开回到主窗口，点 × 关闭后只留托盘。
+
+### 历史记录
+
+<p align="center">
+  <img src="docs/images/electron-history.png" width="330" alt="历史记录" />
+</p>
+
+## 下载
+
+前往 [Releases](../../releases) 下载最新版本：
+
+| 文件 | 说明 |
+| --- | --- |
+| `WorkEncourager-Electron-Setup-<version>.msi` | Electron 版安装包（约 102 MB） |
+| `WorkEncourager-Electron-<version>.zip` | Electron 版免安装压缩包 |
+| `WorkEncourager-Tauri-Setup-<version>.msi` | Tauri 版安装包（约 2 MB） |
+
+系统要求：Windows 10 / 11（x64）。Tauri 版需要 WebView2 Runtime，Windows 11 与较新的 Windows 10 已预装。
+
+## 从源码运行
 
 需要 Node.js 22+ 与 pnpm 11：
 
 ```bash
 pnpm install
-pnpm test              # 两个 app 各 39 项单元测试
-pnpm typecheck         # 类型检查
 
-pnpm dev:electron      # Electron 开发模式
-pnpm dev:tauri         # Tauri 开发模式（需要 Rust 工具链）
+pnpm dev:electron   # Electron 开发模式
+pnpm dev:tauri      # Tauri 开发模式（需要 Rust 工具链）
 ```
 
-### 单独构建安装包
+单元测试与类型检查：
+
+```bash
+pnpm test
+pnpm typecheck
+```
+
+## 构建安装包
 
 Electron：
 
@@ -69,50 +124,102 @@ pnpm --filter @we/electron package:win
 # 产物：apps/electron/release/*.msi、*.zip
 ```
 
-Tauri（需要 Rust stable；Windows 上推荐 MSVC 工具链）：
+Tauri（需要 Rust stable，Windows 上推荐 MSVC 工具链）：
 
 ```bash
 pnpm --filter @we/tauri build
 # 产物：apps/tauri/src-tauri/target/release/bundle/msi/*.msi
 ```
 
-> 没有 MSVC、只有 MinGW 的环境（例如离线机器）可用 GNU 工具链：
-> ```bash
-> pnpm --filter @we/tauri build:gnu
-> ```
-> 需要自行配置 `x86_64-w64-mingw32-gcc` 作为链接器。
-
-## 发布流程
-
-1. 打 tag 并推送：
+只有 MinGW 没有 MSVC 的环境可以用：
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+pnpm --filter @we/tauri build:gnu
 ```
 
-2. GitHub Actions 会自动：
-   - 在 `windows-latest` 上安装依赖、跑单元测试
-   - 构建 Electron 与 Tauri 安装包
-   - 把 MSI/ZIP 上传到该 tag 对应的 Release
+## 工资是怎么算的
 
-也可以在 Actions 页面手动 `Run workflow`，只产出 Artifact 不发布。
+```text
+有效计薪时长 = 班次总时长 − 不计薪休息时长
+
+日薪模式：每秒工资 = 日薪 ÷ 当日有效计薪秒数
+月薪模式：日薪 = 月薪 ÷ 计薪天数；每秒工资 = 日薪 ÷ 当日有效计薪秒数
+时薪模式：每秒工资 = 时薪 ÷ 3600
+
+今日已赚 = 累计有效计薪秒数 × 每秒工资 + 累计加班秒数 × 加班每秒工资
+```
+
+几条关键规则：
+
+- 金额用 Decimal 计算，展示时才四舍五入（今日 4 位，本月 2 位）
+- 暂停区间与休息区间先求交集再扣除，午休不会被重复扣
+- 日薪/月薪的正常班次收入封顶当日日薪；加班收入单独累计
+- 重置只影响当前班次，历史日结记录不变
+
+## 项目结构
+
+```text
+work-encourager/
+├─ packages/shared/         # 唯一一份核心逻辑
+│  ├─ engine.ts             # 状态与金额计算的唯一入口
+│  ├─ schedule.ts           # 班次、休息窗口、工作日
+│  ├─ wage.ts               # Decimal 工资折算
+│  ├─ validation.ts         # 设置校验
+│  ├─ settlement.ts         # 日结与补算
+│  ├─ reminders.ts          # 下班提醒判定
+│  ├─ intervals.ts          # 区间求交 / 合并 / 扣除
+│  ├─ encouragement.ts      # 鼓励文案
+│  └─ date · types · defaults · effective · api
+├─ apps/electron/           # Electron 主进程 + Vue 渲染层
+├─ apps/tauri/              # Tauri Rust 外壳 + Vue 渲染层
+└─ .github/workflows/       # 自动构建与发布
+```
+
+两个应用都通过 `@shared/*` 别名引用核心模块，**修改计算规则只需要改一处**。
+
+| 模块 | 职责 |
+| --- | --- |
+| `engine.ts` | 给定时间与设置，算出状态、金额、进度、倒计时 |
+| `schedule.ts` | 班次展开、休息窗口、特殊日期、跨午夜 |
+| `wage.ts` | 日/月/时薪折算，保留完整精度 |
+| `validation.ts` | 工资、时间、休息、目标等字段校验 |
+| `settlement.ts` | 已结束班次写入日结，支持补算 |
+| `intervals.ts` | 时间区间运算，暂停与休息取交集 |
 
 ## 数据与隐私
 
-- Electron：`%APPDATA%\work-encourager\work-encourager.json`
-- Tauri：`%APPDATA%\com.workencourager.desktop\work-encourager.json`
-- 两版数据结构一致，迁移时复制该 JSON 即可（旧记录缺少的加班字段会自动补 0）
-- 无账号、无网络请求、无遥测
+- 数据以单个 JSON 保存在本机：
+  - Electron：`%APPDATA%\work-encourager\work-encourager.json`
+  - Tauri：`%APPDATA%\com.workencourager.desktop\work-encourager.json`
+- 两个版本结构一致，复制该文件即可迁移
+- 无账号、无网络请求、无遥测；隐私模式隐藏金额但保留进度
+- 数据读取失败时给出明确提示，不会静默清空
 
-## 已知限制
+## 常见问题
 
-1. Tauri 安装包小，但依赖系统 WebView2，进程内存高于 Electron。
-2. Tauri 需要 WebView2 Runtime；缺失时 MSI 的 bootstrapper 会联网下载。
-3. 安装包未代码签名，Windows SmartScreen 可能提示「未知发布者」。
-4. 时薪模式不推断加班；加班是独立开关，仅统计配置班次之后的时间。
-5. 下班提醒依赖 Windows 通知权限；系统关闭通知时不会弹出，但提醒状态仍会持久化以防重复。
+**为什么两个版本内存差这么多？**
+Tauri 复用系统 WebView2，而 WebView2 本身就是多进程 Chromium；Electron 自带一份 Chromium。安装包大小和内存占用是两条不同的取舍。
+
+**关闭窗口后还在计时吗？**
+在。默认关闭窗口是隐藏到托盘，计时与结算继续，重新打开会按真实时间重算。
+
+**改了工资，今天的金额会变吗？**
+保存时会问你从下一班次生效还是立即重算今天。选择立即重算会覆盖今天的日结记录，之前的日期不受影响。
+
+**支持周末或临时加班吗？**
+可以。把某天设为「特殊上班日」，或开启加班计薪让下班后继续累计。
+
+## 路线图
+
+- [ ] 数据导入 / 导出
+- [ ] 更多统计视图（周、季度）
+- [ ] 开机自启
+- [ ] 代码签名与自动更新
+
+## 贡献
+
+欢迎提 Issue 和 PR。提交前请确保 `pnpm test` 与 `pnpm typecheck` 通过；涉及计算规则的改动请补充对应单元测试。
 
 ## 许可
 
-MIT
+[MIT](LICENSE)
