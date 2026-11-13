@@ -134,7 +134,53 @@ jobs:
           find dist -type f \( -name '*.msi' -o -name '*.zip' -o -name '*.exe' \) -exec cp {} assets/ \;
           ls -lh assets
 
+      - name: Compose release notes
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          ver="${tag#v}"
+          cat > release-body.md <<EOF
+          ## 上班鼓励器 ${tag}
+
+          把上班的每一秒，都换成看得见的收获。
+
+          三个版本共用同一套业务规则，按需下载：
+
+          ### 下载
+
+          | 文件 | 版本 | 大小 | 说明 |
+          | --- | --- | ---: | --- |
+          | \`WorkEncourager-Electron-Setup-${ver}.msi\` | Electron | \~102 MB | **推荐**：功能完整，自带运行时，私有内存约 127 MB |
+          | \`WorkEncourager-Electron-${ver}.zip\` | Electron | \~124 MB | 免安装压缩包 |
+          | \`WorkEncourager-Tauri-Setup-${ver}.msi\` | Tauri 2 | \~2 MB | 安装包最小，需要 WebView2，私有内存约 274 MB |
+          | \`WorkEncourager-Slint-${ver}.exe\` | 原生 Rust | \~8 MB | 单文件，私有内存约 4.7 MB，界面较朴素 |
+
+          ### 本次更新
+
+          完整变更见 [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)。
+
+          ### 功能
+
+          - 实时今日已赚、下班倒计时、工时进度、本月累计
+          - 加班计薪：自定义时薪、倍数与每日上限
+          - 桌面浮窗：260×152，置顶，打开后主窗口隐藏、不占任务栏
+          - 托盘常驻、下班提醒、隐私模式、历史记录
+          - 数据只保存在本机，无需登录
+
+          ### 系统要求
+
+          Windows 10 / 11（x64）。Tauri 版需要 WebView2 Runtime，Windows 11 与较新的 Windows 10 已预装。
+
+          ### 说明
+
+          - 安装包未做代码签名，Windows SmartScreen 可能提示「未知发布者」
+          - 原生 Rust（Slint）版界面明显弱于另外两个版本，仅建议在极低内存场景使用
+          - 历史记录结构在两个版本间通用，但 Slint 版字段不同，不自动迁移
+          EOF
+          cat release-body.md
+
       - uses: softprops/action-gh-release@v2
         with:
           files: assets/*
-          generate_release_notes: true
+          body_path: release-body.md
+          generate_release_notes: false
