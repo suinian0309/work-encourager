@@ -1,0 +1,39 @@
+{
+  "name": "@we/electron",
+  "version": "1.0.0",
+  "description": "上班鼓励器 Electron 版 - 把上班的每一秒，都换成看得见的收获",
+  "main": "./out/main/index.js",
+  "author": "Work Encourager",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && vue-tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke.ps1",
+    "package:win": "electron-vite build && electron-builder --win --x64",
+    "package:installer": "electron-vite build && electron-builder --win msi --x64",
+    "package:portable": "electron-vite build && electron-builder --win portable --x64",
+    "package:nsis": "electron-vite build && electron-builder --win nsis --x64",
+    "package:dir": "electron-vite build && electron-builder --win --x64 --dir"
+  },
+  "dependencies": {
+    "decimal.js": "10.6.0",
+    "electron-store": "8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@vitejs/plugin-vue": "6.0.10",
+    "electron": "37.10.3",
+    "electron-builder": "26.18.1",
+    "electron-vite": "4.0.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.8",
+    "vitest": "3.2.7",
+    "vue": "3.5.45",
+    "vue-tsc": "3.1.1"
+  }
+}

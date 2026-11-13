@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+out/
+dist/
+release/
+apps/tauri/src-tauri/target/
+apps/tauri/src-tauri/gen/
+*.tsbuildinfo
+
+# runtime / test artifacts
+.smoke-*/
+.shots/
+.wv2*/
+.tauri-data/
+.e2e-*/
+*.log
+*.tmp
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

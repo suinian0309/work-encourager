@@ -1,0 +1,37 @@
+appId: com.workencourager.app
+productName: 上班鼓励器
+copyright: Copyright © 2026 上班鼓励器
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+asarUnpack:
+  - resources/**
+extraResources:
+  - from: resources
+    to: resources
+    filter:
+      - '**/*'
+win:
+  target:
+    - msi
+    - zip
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 上班鼓励器
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  artifactName: ${productName}-Setup-${version}.${ext}
+portable:
+  artifactName: ${productName}-Portable-${version}.${ext}

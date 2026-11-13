@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "上班鼓励器",
+  "version": "1.0.0",
+  "identifier": "com.workencourager.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev:web",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm build:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "上班鼓励器",
+        "width": 380,
+        "height": 720,
+        "minWidth": 340,
+        "minHeight": 540,
+        "resizable": true,
+        "decorations": false,
+        "center": true,
+        "visible": true
+      },
+      {
+        "label": "float",
+        "title": "上班鼓励器浮窗",
+        "url": "float.html",
+        "width": 260,
+        "height": 152,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": false,
+        "focus": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi"],
+    "icon": ["icons/icon.ico"],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": "zh-CN"
+      }
+    }
+  }
+}

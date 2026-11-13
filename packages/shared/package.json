@@ -1,0 +1,13 @@
+{
+  "name": "@we/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "上班鼓励器共享核心：工资计算、排班、加班、校验、日结、提醒",
+  "dependencies": {
+    "decimal.js": "10.6.0"
+  },
+  "scripts": {
+    "test": "echo \"shared is tested through apps\" && exit 0"
+  }
+}
