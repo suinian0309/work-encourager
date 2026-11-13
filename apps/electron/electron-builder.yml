@@ -1,4 +1,4 @@
-appId: com.workencourager.app
+﻿appId: com.workencourager.app
 productName: 上班鼓励器
 copyright: Copyright © 2026 上班鼓励器
 directories:
@@ -32,6 +32,6 @@ nsis:
   uninstallerIcon: build/icon.ico
   deleteAppDataOnUninstall: false
   runAfterFinish: true
-  artifactName: ${productName}-Setup-${version}.${ext}
+  artifactName: WorkEncourager-Electron-Setup-${version}.${ext}
 portable:
-  artifactName: ${productName}-Portable-${version}.${ext}
+  artifactName: WorkEncourager-Electron-Portable-${version}.${ext}
