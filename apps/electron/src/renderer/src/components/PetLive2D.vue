@@ -23,7 +23,14 @@ type AnyModel = {
   internalModel: {
     originalWidth: number
     originalHeight: number
-    motionManager: { groups: Record<string, string>; expressionManager?: { setExpression: (def: unknown) => void; definitions: Array<{ Name: string; File: string }> } }
+    motionManager: {
+      groups: Record<string, string>
+      definitions: Record<string, unknown[]>
+      expressionManager?: {
+        setExpression: (def: unknown) => void
+        definitions: Array<{ Name: string; File: string }>
+      }
+    }
   }
   destroy: () => void
 }
@@ -32,7 +39,7 @@ let appRef: { destroy: (removeView?: boolean, stageOptions?: unknown) => void; r
 let model: AnyModel | null = null
 let destroyed = false
 
-const EXPRESSIONS = ['blush', 'heart', 'sly', 'tooth', 'dizzy']
+const SAFE_EXPRESSION_HINTS = ['＞＜', '脸红', '爱心', '圈圈', '兔牙', '冷汗', '流泪', '黑脸', '屑屑', 'blush', 'heart', 'sly', 'tooth', 'dizzy']
 
 // ---- 拖动与抛掷 ----
 type Env = { x: number; y: number; width: number; height: number; workArea: { x: number; y: number; width: number; height: number } }
@@ -166,19 +173,34 @@ function onPointerUp(event: PointerEvent): void {
   throwPet()
 }
 
+function pickExpression(): string | undefined {
+  if (!model) return undefined
+  const manager = model.internalModel.motionManager.expressionManager
+  if (!manager) return undefined
+  const safe = manager.definitions.filter((item) =>
+    SAFE_EXPRESSION_HINTS.some((hint) => String(item.Name || '').toLowerCase().includes(hint.toLowerCase()))
+  )
+  const pool = safe.length > 0 ? safe : manager.definitions
+  if (pool.length === 0) return undefined
+  return pool[Math.floor(Math.random() * pool.length)].Name
+}
+
 function handleTap(): void {
   emit('tap')
   if (!model) return
-  void model.motion('TapBody', Math.floor(Math.random() * 7), 3)
+  const groups = model.internalModel.motionManager.definitions as Record<string, unknown[]>
+  const group = groups['TapBody']?.length ? 'TapBody' : groups['Idle']?.length ? 'Idle' : ''
+  const count = group ? (groups[group] as unknown[]).length : 0
+  if (group && count > 0) void model.motion(group, Math.floor(Math.random() * count), 3)
   const manager = model.internalModel.motionManager.expressionManager
   if (manager) {
-    const name = EXPRESSIONS[Math.floor(Math.random() * EXPRESSIONS.length)]
-    const definition = manager.definitions.find((item) => item.Name === name)
+    const name = pickExpression()
+    const definition = name ? manager.definitions.find((item) => item.Name === name) : undefined
     if (definition) manager.setExpression(definition)
   }
 }
 
-let scaleFactor = 2.2
+let scaleFactor = 1.85
 let anchorY = 0
 let posYRatio = -0.12
 

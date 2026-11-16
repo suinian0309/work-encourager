@@ -10,8 +10,8 @@ import {
   screen,
   shell
 } from 'electron'
-import { mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { AppService } from './service'
 import { DataStoreError, openStore, type StoreHandle } from './store'
@@ -611,9 +611,9 @@ function registerIpc(): void {
   ipcMain.handle('live2d:import', async () => {
     const serviceRef = getService()
     const options: Electron.OpenDialogOptions = {
-      title: '选择 Live2D 模型（.model3.json）',
-      properties: ['openFile'],
-      filters: [{ name: 'Live2D 模型', extensions: ['json'] }]
+      title: '选择 Live2D 模型文件夹（里面含 .model3.json）',
+      properties: ['openDirectory'],
+      buttonLabel: '导入这个模型'
     }
     const result = mainWindow
       ? await dialog.showOpenDialog(mainWindow, options)
@@ -694,7 +694,7 @@ function bootstrap(): void {
     if (isQuitting) app.quit()
   })
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
     try {
       storeHandle = openStore(process.env['WORK_ENC_DATA_DIR'] || undefined)
       service = new AppService(storeHandle, { now: () => Date.now(), version: app.getVersion() })
@@ -715,6 +715,22 @@ function bootstrap(): void {
 
     nativeTheme.themeSource = currentSettings().theme
     registerLive2dProtocol()
+
+    // 无界面导入自检：WORK_ENC_IMPORT_TEST=<model3.json 或目录>，把结果写到 WORK_ENC_IMPORT_OUT
+    const importTest = process.env['WORK_ENC_IMPORT_TEST']
+    if (importTest) {
+      const out = process.env['WORK_ENC_IMPORT_OUT'] || join(process.cwd(), 'import-test.json')
+      try {
+        const result = await importLive2dModel(importTest, service.live2dRoot())
+        mkdirSync(dirname(out), { recursive: true })
+        writeFileSync(out, JSON.stringify({ ok: true, ...result }, null, 2), 'utf8')
+      } catch (error) {
+        writeFileSync(out, JSON.stringify({ ok: false, error: String((error as Error).message || error) }, null, 2), 'utf8')
+      }
+      app.quit()
+      return
+    }
+
     createWindow()
     createTray()
     reminders = new ReminderService(service, () => showWindow())

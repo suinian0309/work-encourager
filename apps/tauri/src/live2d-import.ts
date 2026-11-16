@@ -1,10 +1,18 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { Live2dModelInfo } from '@shared/types'
 
-/** 贴图长边上限：原图 8192² 直接进显存约 620MB，降到 1024 后约 14MB */
-const MAX_TEXTURE_EDGE = 1024
+/** 贴图长边上限：原图 8192² 进显存约 620MB，降到 2048 后约 20MB 内，同时保留细节 */
+const MAX_TEXTURE_EDGE = 2048
 /** 模型目录体积上限，超过直接拒绝，避免一次读几 GB 卡死渲染进程 */
 const MAX_MODEL_BYTES = 240 * 1024 * 1024
+/** 动作/表情目录最多往下找几层 */
+const MAX_SCAN_DEPTH = 4
+/**
+ * 只自动启用“改了不吓人”的表情。
+ * 官方模型目录里常把眼镜、钢盆、换裙子这类换装项也做成 exp3，
+ * 全量挂上去会导致点一下就变成完全不同的造型。
+ */
+const SAFE_EXPRESSION_HINTS = ['＞＜', '脸红', '爱心', '圈圈', '兔牙', '冷汗', '流泪', '黑脸', '屑屑']
 
 interface Model3Json {
   Version?: number
@@ -29,6 +37,11 @@ export interface TauriImportResult {
   stats: { textures: number; motions: number; expressions: number; bytes: number; resized: string[] }
 }
 
+interface FileIndex {
+  byPath: Map<string, File>
+  byName: Map<string, File[]>
+}
+
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').toLowerCase()
 }
@@ -36,6 +49,15 @@ function normalizePath(path: string): string {
 function dirOf(path: string): string {
   const index = path.lastIndexOf('/')
   return index < 0 ? '' : path.slice(0, index)
+}
+
+function nameOf(path: string): string {
+  const index = path.lastIndexOf('/')
+  return index < 0 ? path : path.slice(index + 1)
+}
+
+function depthOf(path: string): number {
+  return path.split('/').length - 1
 }
 
 function joinPath(dir: string, ref: string): string {
@@ -58,7 +80,43 @@ function base64OfText(text: string): string {
   return base64Of(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer)
 }
 
-/** 用 canvas 把贴图等比缩到长边 1024，失败时退回原图，保证导入不整体失败 */
+function relativeOf(file: File): string {
+  return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+}
+
+function buildIndex(files: File[]): FileIndex {
+  const byPath = new Map<string, File>()
+  const byName = new Map<string, File[]>()
+  for (const file of files) {
+    const key = normalizePath(relativeOf(file))
+    byPath.set(key, file)
+    const name = nameOf(key)
+    const bucket = byName.get(name)
+    if (bucket) bucket.push(file)
+    else byName.set(name, [file])
+  }
+  return { byPath, byName }
+}
+
+/**
+ * 把 model3.json 里的引用解析成真实文件。
+ * 顺序：相对模型目录 → 大小写不敏感全路径 → 同名唯一 → 相对根目录 → 后缀唯一。
+ */
+function resolveRef(index: FileIndex, sourceDir: string, ref: string | undefined): File | null {
+  if (!ref) return null
+  const direct = index.byPath.get(normalizePath(joinPath(sourceDir, ref)))
+  if (direct) return direct
+  const rootRelative = index.byPath.get(normalizePath(ref))
+  if (rootRelative) return rootRelative
+  const base = nameOf(ref.replace(/\\/g, '/')).toLowerCase()
+  const sameName = index.byName.get(base)
+  if (sameName && sameName.length === 1) return sameName[0]
+  const suffix = ref.replace(/\\/g, '/').toLowerCase()
+  const matches = Array.from(index.byPath.entries()).filter(([path]) => path.endsWith('/' + suffix) || path === suffix)
+  return matches.length === 1 ? matches[0][1] : null
+}
+
+/** 用 canvas 把贴图等比缩到长边 2048，失败时退回原图，保证导入不整体失败 */
 async function textureBase64(file: File): Promise<{ data: string; note: string | null }> {
   const original = base64Of(await file.arrayBuffer())
   try {
@@ -89,31 +147,36 @@ async function textureBase64(file: File): Promise<{ data: string; note: string |
   }
 }
 
+function isIdleMotion(name: string): boolean {
+  return /idle|待机|静止|呼吸|默认/i.test(name)
+}
+
+function isSafeExpression(name: string): boolean {
+  return SAFE_EXPRESSION_HINTS.some((hint) => name.includes(hint))
+}
+
 /**
  * 在渲染层整理用户选择的模型目录：
  * - 所有文件改写成 ASCII 文件名（中文路径在打包环境与自定义协议里容易出问题）；
  * - 贴图用 canvas 降采样，控制显存；
+ * - model3.json 没声明动作/表情时，扫描目录里的 motion3/exp3 并挂上去；
  * - 通过 live2d_save 命令落盘到 <data>/live2d/<id>/。
  */
 export async function importLive2dFromFiles(files: FileList): Promise<TauriImportResult> {
   const list = Array.from(files)
   if (list.length === 0) throw new Error('没有选择任何文件')
 
-  const byPath = new Map<string, File>()
-  for (const file of list) {
-    const relative = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
-    byPath.set(normalizePath(relative), file)
-  }
-
-  const modelEntry = list.find((file) => file.name.toLowerCase().endsWith('.model3.json'))
+  const index = buildIndex(list)
+  const modelEntries = list
+    .filter((file) => file.name.toLowerCase().endsWith('.model3.json'))
+    .sort((a, b) => depthOf(normalizePath(relativeOf(a))) - depthOf(normalizePath(relativeOf(b))))
+  const modelEntry = modelEntries[0]
   if (!modelEntry) throw new Error('目录里没有 .model3.json，请选择模型所在文件夹')
 
-  const relativeModel = normalizePath((modelEntry as File & { webkitRelativePath?: string }).webkitRelativePath || modelEntry.name)
+  const relativeModel = normalizePath(relativeOf(modelEntry))
   const sourceDir = dirOf(relativeModel)
-  const lookup = (ref: string | undefined): File | null => {
-    if (!ref) return null
-    return byPath.get(normalizePath(joinPath(sourceDir, ref))) ?? null
-  }
+  const rootDepth = depthOf(relativeModel) - 1
+  const lookup = (ref: string | undefined): File | null => resolveRef(index, sourceDir, ref)
 
   let model: Model3Json
   try {
@@ -175,41 +238,73 @@ export async function importLive2dFromFiles(files: FileList): Promise<TauriImpor
     out.FileReferences!.Pose = 'pose3.json'
   }
 
-  let motionCount = 0
-  if (refs.Motions) {
-    const motions: Record<string, Array<Record<string, unknown>>> = {}
-    for (const [group, items] of Object.entries(refs.Motions)) {
-      const entries: Array<Record<string, unknown>> = []
+  const inScope = (file: File): boolean => depthOf(normalizePath(relativeOf(file))) - rootDepth <= MAX_SCAN_DEPTH
+
+  // 动作：优先用 model3.json 的声明；没声明时扫描目录
+  const motionFiles: File[] = []
+  if (refs.Motions && Object.keys(refs.Motions).length > 0) {
+    for (const items of Object.values(refs.Motions)) {
       for (const item of items ?? []) {
         const file = lookup(item.File)
-        if (!file) continue
-        const name = `motions/m${motionCount}.motion3.json`
-        writes.push([name, base64OfText(await file.text())])
-        motionCount += 1
-        const { File: _file, Sound: _sound, ...rest } = item
-        entries.push({ ...rest, File: name })
+        if (file) motionFiles.push(file)
       }
-      if (entries.length > 0) motions[group] = entries
     }
-    if (Object.keys(motions).length > 0) out.FileReferences!.Motions = motions
+  } else {
+    const scanned = list
+      .filter((file) => file.name.toLowerCase().endsWith('.motion3.json') && inScope(file))
+      .sort((a, b) => relativeOf(a).localeCompare(relativeOf(b)))
+    motionFiles.push(...scanned)
   }
 
-  let expressionCount = 0
-  if (refs.Expressions) {
-    const expressions: Array<{ Name: string; File: string }> = []
+  const motions: Record<string, Array<{ File: string }>> = {}
+  let motionCount = 0
+  for (const file of motionFiles) {
+    const name = `motions/m${motionCount}.motion3.json`
+    writes.push([name, base64OfText(await file.text())])
+    motionCount += 1
+    const group = isIdleMotion(file.name.replace(/\.motion3\.json$/i, '')) ? 'Idle' : 'TapBody'
+    if (!motions[group]) motions[group] = []
+    motions[group].push({ File: name })
+  }
+  if (motionCount > 0) {
+    if (!motions.Idle && motions.TapBody?.length) {
+      motions.Idle = [motions.TapBody[0]]
+    }
+    if (!motions.TapBody && motions.Idle?.length) {
+      motions.TapBody = motions.Idle.slice(1)
+    }
+    out.FileReferences!.Motions = motions
+  }
+
+  // 表情：同样优先声明，其次扫描；扫描时只收安全项
+  const expressionFiles: Array<{ file: File; name: string }> = []
+  if (refs.Expressions && refs.Expressions.length > 0) {
     for (const item of refs.Expressions) {
       const file = lookup(item.File)
       if (!file) continue
-      const name = `expressions/e${expressionCount}.exp3.json`
-      writes.push([name, base64OfText(await file.text())])
-      expressions.push({
-        Name: item.Name || (item.File ?? name).replace(/\.exp3\.json$/i, ''),
-        File: name
-      })
-      expressionCount += 1
+      const name = item.Name || file.name.replace(/\.exp3\.json$/i, '')
+      expressionFiles.push({ file, name })
     }
-    if (expressions.length > 0) out.FileReferences!.Expressions = expressions
+  } else {
+    const scanned = list
+      .filter((file) => file.name.toLowerCase().endsWith('.exp3.json') && inScope(file))
+      .sort((a, b) => relativeOf(a).localeCompare(relativeOf(b)))
+    for (const file of scanned) {
+      const name = file.name.replace(/\.exp3\.json$/i, '')
+      if (!isSafeExpression(name)) continue
+      expressionFiles.push({ file, name })
+    }
   }
+
+  const expressions: Array<{ Name: string; File: string }> = []
+  let expressionCount = 0
+  for (const item of expressionFiles) {
+    const name = `expressions/e${expressionCount}.exp3.json`
+    writes.push([name, base64OfText(await item.file.text())])
+    expressions.push({ Name: item.name, File: name })
+    expressionCount += 1
+  }
+  if (expressions.length > 0) out.FileReferences!.Expressions = expressions
 
   writes.push(['model3.json', base64OfText(JSON.stringify(out, null, 2))])
   await invoke('live2d_save', { id, files: writes })
@@ -220,7 +315,7 @@ export async function importLive2dFromFiles(files: FileList): Promise<TauriImpor
       name: modelEntry.name.replace(/\.model3\.json$/i, ''),
       importedAt: Date.now(),
       textures: textures.length,
-      source: (modelEntry as File & { webkitRelativePath?: string }).webkitRelativePath || modelEntry.name
+      source: relativeOf(modelEntry)
     },
     stats: {
       textures: textures.length,
