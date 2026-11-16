@@ -77,8 +77,8 @@ body.float-body {
 
 body.float-body #float {
   height: 100%;
-  /* 给卡片外的柔和阴影留出空间，避免阴影被窗口边缘切断 */
-  padding: 10px;
+  /* 只留 4px 给柔和阴影，卡片仍保持原来的 260×152 */
+  padding: 4px;
   box-sizing: border-box;
 }
 

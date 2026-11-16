@@ -693,8 +693,8 @@ pub fn run() {
           let scale = monitor.scale_factor();
           let size = monitor.size();
           let position = monitor.position();
-          let x = position.x as f64 / scale + size.width as f64 / scale - 280.0;
-          let y = position.y as f64 / scale + size.height as f64 / scale - 172.0;
+          let x = position.x as f64 / scale + size.width as f64 / scale - 288.0;
+          let y = position.y as f64 / scale + size.height as f64 / scale - 180.0;
           let _ = float.set_position(tauri::PhysicalPosition::new(x, y));
         }
         let _ = float.set_skip_taskbar(true);

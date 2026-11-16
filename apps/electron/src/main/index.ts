@@ -74,9 +74,12 @@ function updateTray(): void {
   tray.update(state.timerOn, tooltip, floatVisible(), petVisible(), service.petStats(Date.now()).today)
 }
 
+const FLOAT_WIDTH = 268
+const FLOAT_HEIGHT = 160
+
 function defaultFloatBounds(): { x: number; y: number } {
   const area = screen.getPrimaryDisplay().workArea
-  return { x: area.x + area.width - 292, y: area.y + area.height - 184 }
+  return { x: area.x + area.width - FLOAT_WIDTH - 20, y: area.y + area.height - FLOAT_HEIGHT - 20 }
 }
 
 function createFloatWindow(): BrowserWindow {
@@ -87,16 +90,16 @@ function createFloatWindow(): BrowserWindow {
   const onScreen = screen.getAllDisplays().some((display) => {
     const area = display.workArea
     return (
-      position.x + 272 > area.x + 20 &&
+      position.x + FLOAT_WIDTH > area.x + 20 &&
       position.x < area.x + area.width - 20 &&
-      position.y + 164 > area.y + 20 &&
+      position.y + FLOAT_HEIGHT > area.y + 20 &&
       position.y < area.y + area.height - 20
     )
   })
   const initial = onScreen ? position : fallback
   const window = new BrowserWindow({
-    width: 272,
-    height: 164,
+    width: FLOAT_WIDTH,
+    height: FLOAT_HEIGHT,
     x: initial.x,
     y: initial.y,
     show: false,

@@ -101,14 +101,14 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   border-radius: 18px;
-  padding: 10px 12px 9px;
+  padding: 11px 13px 10px;
   color: #eef7f1;
   background:
     radial-gradient(120% 120% at 100% 0%, rgba(52, 179, 136, 0.32), transparent 58%),
     rgba(15, 27, 21, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.16),
+    0 2px 6px rgba(0, 0, 0, 0.14),
     0 1px 2px rgba(0, 0, 0, 0.1);
   -webkit-app-region: drag;
   overflow: hidden;
@@ -241,9 +241,9 @@ onBeforeUnmount(() => {
 
 .float-progress {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 6px;
+  left: 13px;
+  right: 13px;
+  bottom: 5px;
   height: 3px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.14);

@@ -1,4 +1,4 @@
-// 临时视觉核验脚本：把构建产物加载到固定尺寸窗口里截图，不参与打包
+﻿// 涓存椂瑙嗚鏍搁獙鑴氭湰锛氭妸鏋勫缓浜х墿鍔犺浇鍒板浐瀹氬昂瀵哥獥鍙ｉ噷鎴浘锛屼笉鍙備笌鎵撳寘
 const { app, BrowserWindow } = require('electron')
 const { join } = require('node:path')
 const { writeFileSync, mkdirSync } = require('node:fs')
@@ -31,7 +31,7 @@ async function shot(file, width, height, name, opts = {}) {
 app.whenReady().then(async () => {
   const only = process.argv.find((item) => item === 'pet' || item === 'float') ?? 'all'
   try {
-    if (only !== 'pet') await shot('float.html', 272, 164, 'float.png')
+    if (only !== 'pet') await shot('float.html', 268, 160, 'float.png')
     if (only !== 'float') {
       await new Promise((r) => setTimeout(r, 300))
       await shot('pet.html', 256, 248, 'pet-idle.png')
