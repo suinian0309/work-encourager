@@ -391,6 +391,7 @@ fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
 
 /// 安装包里随附了一份整理好的 Live2D 模型，首次启动时放进数据目录并直接启用。
 /// 已经有模型（用户自己导入过）时什么都不做。
+#[allow(dead_code)]
 fn install_bundled_model(app: &AppHandle) -> Result<(), String> {
   let already = read_db(app)
     .and_then(|db| db.get("live2d").cloned())
@@ -518,11 +519,8 @@ fn pet_apply_style(app: AppHandle, style: String) -> Result<(), String> {
   let Some(pet) = app.get_webview_window("pet") else {
     return Ok(());
   };
-  let (width, height) = if style == "live2d" {
-    (300.0, 360.0)
-  } else {
-    (256.0, 280.0)
-  };
+  let _ = style;
+  let (width, height) = (300.0, 380.0);
   pet
     .set_size(tauri::LogicalSize::new(width, height))
     .map_err(|error| format!("调整宠物窗口尺寸失败：{error}"))?;
@@ -977,7 +975,6 @@ pub fn run() {
         data_dir,
         fired: Mutex::new(fired),
       });
-      let _ = install_bundled_model(app.handle());
       create_tray(app.handle())?;
       if let Some(float) = app.get_webview_window("float") {
         if let Ok(Some(monitor)) = float.primary_monitor() {
@@ -1013,13 +1010,7 @@ pub fn run() {
         }
         let _ = pet.set_skip_taskbar(true);
         set_taskbar_hidden(&pet);
-        // 用 Live2D 形象时窗口要比团子猫大一圈，否则角色会被裁掉
-        let style = read_db(app.handle())
-          .and_then(|db| db.get("petStyle").and_then(|value| value.as_str().map(str::to_string)))
-          .unwrap_or_else(|| "mochi".to_string());
-        if style == "live2d" {
-          let _ = pet.set_size(tauri::LogicalSize::new(300.0, 360.0));
-        }
+        let _ = pet.set_size(tauri::LogicalSize::new(300.0, 380.0));
       }
       spawn_reminders(app.handle().clone());
       Ok(())

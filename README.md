@@ -12,7 +12,7 @@
 ![vue](https://img.shields.io/badge/Vue-3-42B883?style=flat-square&logo=vue.js&logoColor=white)
 ![typescript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![rust](https://img.shields.io/badge/Rust-1.99-000000?style=flat-square&logo=rust&logoColor=white)
-![license](https://img.shields.io/badge/license-MIT-2E8B57?style=flat-square)
+![license](https://img.shields.io/badge/license-AGPL--3.0-2E8B57?style=flat-square)
 
 <table>
   <tr>
@@ -22,7 +22,7 @@
     </td>
     <td align="center" width="50%">
       <img src="docs/images/tauri-main.png" width="330" alt="Tauri 版主界面" /><br />
-      <sub><b>Tauri 版</b> · 安装包约 2 MB，同一套界面</sub>
+      <sub><b>Tauri 版</b> · 安装包约 5 MB，同一套界面</sub>
     </td>
   </tr>
 </table>
@@ -33,8 +33,8 @@
 - **下班倒计时**：真实墙上时间，跨午夜班次显示「次日」
 - **工时进度**：只统计有效计薪时长，休息与手动暂停都不计入
 - **加班计薪**：下班后自动累计，可自定义加班时薪与倍数，支持每日上限
-- **桌面浮窗**：260×152 的透明小卡片（窗口 268×160，4px 留给阴影），只留状态、金额、倒计时和进度；主窗口隐藏、不占任务栏
-- **摸鱼小宠物**：一只会呼吸、眨眼、打瞌睡的糯米团子猫，点一下头上冒 +1，和浮窗可以同时开着；也可以换成自己的 Live2D 模型（支持拎起来、抛出去）
+- **桌面浮窗**：260×103 的透明小卡片（窗口 268×111，4px 留给阴影），只留状态、金额、倒计时和进度；主窗口隐藏、不占任务栏
+- **摸鱼小宠物**：一只会呼吸、眨眼、摆尾的鲸鱼娘，点一下头上冒 +1，按住可以拎起来、松手会掉下去；和浮窗可以同时开着，素材随安装包分发，不需要导入
 - **鼓励文案**：根据当前收入和消费目标生成，「再过 12 分钟，一杯奶茶就赚回来了」
 - **本月累计与历史**：按工作日归档，历史记录冻结当日工资参数，改设置不影响过去
 - **托盘常驻**：显示主窗口、开关计时器、打开浮窗、退出
@@ -46,7 +46,7 @@
 | | Electron 版 | Tauri 版 | 原生 Rust（Slint）版 |
 | --- | --- | --- | --- |
 | 技术栈 | Electron + Vue 3 | Tauri 2 + Rust + WebView2 | Rust + Slint 软件渲染 |
-| 安装包 | 约 102 MB | 约 2 MB | 约 9 MB（单文件 exe） |
+| 安装包 | 约 106 MB | 约 5 MB | 约 9 MB（单文件 exe） |
 | 运行内存（私有） | 约 127 MB | 约 274 MB | **约 4.7 MB** |
 | 依赖 | 自带 Chromium | 系统 WebView2 | 无 |
 | 界面观感 | ★★★★☆ | ★★★★☆ | **★★☆☆☆** |
@@ -60,9 +60,9 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| `WorkEncourager-Electron-Setup-<version>.msi` | Electron 版安装包（约 102 MB） |
+| `WorkEncourager-Electron-Setup-<version>.msi` | Electron 版安装包（约 106 MB） |
 | `WorkEncourager-Electron-<version>.zip` | Electron 版免安装压缩包 |
-| `WorkEncourager-Tauri-Setup-<version>.msi` | Tauri 版安装包（约 2 MB） |
+| `WorkEncourager-Tauri-Setup-<version>.msi` | Tauri 版安装包（约 5 MB） |
 | `WorkEncourager-Slint-<version>.exe` | 原生 Rust 版单文件程序（约 9 MB，界面较朴素） |
 
 系统要求：Windows 10 / 11（x64）。Tauri 版需要 WebView2 Runtime，Windows 11 与较新的 Windows 10 已预装。
@@ -153,27 +153,24 @@ cargo build --release --manifest-path apps/slint/Cargo.toml
 
 ## 摸鱼小宠物
 
-<img src="docs/images/pet-mochi.png" width="200" align="right" alt="糯米小鱼" />
+<img src="docs/images/pet-whale.png" width="200" align="right" alt="鲸鱼娘" />
 
-主界面标题栏那只小鱼按钮会打开一个小窗：默认是一只米白配薄荷绿的糯米小鱼——圆滚滚的身子、两瓣尾鳍、一圈气泡，头顶一株嫩芽。整只鱼是 SVG 手绘、CSS 做动效：呼吸、眨眼、尾鳍摆动，被点的时候会先压扁再弹回来。
+主界面标题栏的那只小鱼会打开一个 300×380 的无边框小窗：里面是一只鲸鱼娘，圆脸、双马尾、背后一条鲸尾，站着轻轻呼吸、眨眼睛、甩尾巴。
 
-- 点一下头上冒「+1」，每 5 次蹦一句台词，闲置 5 分钟会睡着冒 zzz
-- 计数按自然日累加，和工资数据一起存进同一个 JSON：`petDaily`（每天几次）、`petTotal`（累计几次）
-- 窗口位置随拖动记住，不占任务栏，**可以和浮窗、主窗口同时开着**
-- 托盘菜单里是「摸鱼小宠物（今日 N 次）」，随时可以收起
+- **点一下**：她抖一下，头顶冒「+1」；每 5 次蹦一句摸鱼台词
+- **按住拖动**：整只被拎起来，窗口跟着鼠标走，身体上提倾斜；松手落到地上，速度太快会摔一下
+- **计数**：按自然日累加，和工资数据存在同一个 JSON：`petDaily`（每天几次）、`petTotal`（累计几次）；换天自动归零当天
+- **窗口**：位置随拖动记住，不占任务栏，**可以和浮窗、主窗口同时开着**
+- **托盘菜单**：「摸鱼小宠物（今日 N 次）」，随时可以收起
 
-### Live2D 模型
+### 它是怎么画出来的
 
-<img src="docs/images/pet-live2d.png" width="200" align="right" alt="Live2D 小宠物" />
+不是 Live2D，也不用每帧换图：32 张分层 PNG（头发、脸、身体、鳍、尾巴）配一套骨骼网格，WebGL 逐层做网格变形，表情另外画在 Canvas 上再当贴图换。
 
-安装包里已经随附了一份整理好的 Live2D 模型（`resources/live2d`），**首次启动会自动装进用户数据目录并切到 Live2D 形象**，不需要手动导入；想换回小鱼的，设置 →「桌面形象」里点一下即可。
-
-- **自动瘦身**：moc3、贴图、物理、表情、动作全部改写成 ASCII 路径拷进本地数据目录；贴图等比压到长边 2048，5 张原尺寸 4K/8K 贴图约占 620 MB 显存，压完约 20 MB，整套约 22 MB
-- **交互**：单击播放 `TapBody` 动作并随机换表情（脸红、爱心眼、＞＜…）；按住可以把它拎起来——窗口跟手、身体上提倾斜；松手按拖动速度抛掷，落地有重力与反弹
-- **性能**：300×360 窗口下 60 fps，需要硬件加速（软件渲染只有 3 fps，所以不再强制 `--disable-gpu`）
-- **版权**：仓库里**不带任何模型**。模型归各自作者，请自备；项目本身仍是 MIT，渲染用的是官方 Cubism Core 5.0
-
-没有导入模型时完全不会加载图片资源：团子猫只多一个 WebView 窗口，Electron 版增量约 8～12 MB、Tauri 版约 25～35 MB 私有内存。
+- 运行时三个模块在 `apps/electron/src/renderer/src/whale/`（`rig.js` 11 KB、`body.js` 59 KB、`figure.js` 56 KB），Tauri 版同一份
+- 素材在 `assets/whale/`：`model.json`、`figure.json`、`tex/`、`feat/`、`outfits/`，共 90 个文件 2.73 MB，构建时随安装包一起发行
+- 实测 300×380 窗口下 60 fps（Electron 与 Tauri 都是），需要硬件加速
+- 形象与骨骼动画来自 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（AGPL-3.0），本项目按同一许可证分发，详见 [NOTICE.md](NOTICE.md)
 
 ## 项目结构
 
@@ -242,4 +239,8 @@ Tauri 复用系统 WebView2，而 WebView2 本身就是多进程 Chromium；Elec
 
 ## 许可
 
-[MIT](LICENSE)
+[AGPL-3.0-or-later](LICENSE)。
+
+摸鱼小宠物的形象（`assets/whale/`）与骨骼动画运行时（`whale/rig.js`、`whale/body.js`、`whale/figure.js`）来自 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)，按其 AGPL-3.0 条款使用，署名见 [NOTICE.md](NOTICE.md)。
+
+如果你把本项目部署成网络服务并修改了代码，AGPL 第 13 条要求你向使用者提供对应的完整源码。
