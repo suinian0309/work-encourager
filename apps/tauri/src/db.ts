@@ -1,4 +1,4 @@
-import type { AppDb, PauseInterval, Settings, SettingsEntry } from '@shared/types'
+import type { AppDb, Live2dModelInfo, PauseInterval, PetStyle, Settings, SettingsEntry } from '@shared/types'
 import { defaultSettings } from '@shared/defaults'
 import { toDateKey } from '@shared/date'
 import { validateSettings } from '@shared/validation'
@@ -33,12 +33,27 @@ export function createInitialDb(now: number): AppDb {
     floatBounds: null,
     petDaily: {},
     petTotal: 0,
-    petBounds: null
+    petBounds: null,
+    petStyle: 'mochi',
+    live2d: null
   }
 }
 
-function normalizePetDaily(input: unknown): Record<string, number> {
-  const out: Record<string, number> = {}
+function normalizeLive2d(input: unknown): Live2dModelInfo | null {
+  if (!input || typeof input !== 'object') return null
+  const raw = input as Partial<Live2dModelInfo>
+  if (typeof raw.id !== 'string' || !/^[a-f0-9]{8,40}$/.test(raw.id)) return null
+  if (typeof raw.name !== 'string' || raw.name.length === 0) return null
+  return {
+    id: raw.id,
+    name: raw.name.slice(0, 120),
+    importedAt: Number(raw.importedAt) || 0,
+    textures: Math.max(0, Math.floor(Number(raw.textures) || 0)),
+    source: typeof raw.source === 'string' ? raw.source.slice(0, 260) : ''
+  }
+}
+
+function normalizePetDaily(input: unknown): Record<string, number> {  const out: Record<string, number> = {}
   if (!input || typeof input !== 'object') return out
   const entries = Object.entries(input as Record<string, unknown>)
     .filter(
@@ -105,6 +120,9 @@ export function normalizeDb(raw: Partial<AppDb>, now: number): AppDb {
     }
   }
 
+  const normalizedLive2d = normalizeLive2d(raw.live2d)
+  const normalizedStyle: PetStyle = raw.petStyle === 'live2d' && normalizedLive2d ? 'live2d' : 'mochi'
+
   return {
     version: 1,
     createdAt: Number(raw.createdAt) || now,
@@ -134,7 +152,9 @@ export function normalizeDb(raw: Partial<AppDb>, now: number): AppDb {
       Number.isFinite(raw.petBounds.x) &&
       Number.isFinite(raw.petBounds.y)
         ? { x: Number(raw.petBounds.x), y: Number(raw.petBounds.y) }
-        : null
+        : null,
+    petStyle: normalizedStyle,
+    live2d: normalizedLive2d
   }
 }
 

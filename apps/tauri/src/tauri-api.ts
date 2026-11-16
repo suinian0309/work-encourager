@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { AppState, BootstrapPayload, HistoryView, PetStats, SaveSettingsPayload, SaveSettingsResult, Settings } from '@shared/types'
-import type { WorkEncouragerApi } from '@shared/api'
+import type { AppState, BootstrapPayload, HistoryView, PetStats, PetStyle, SaveSettingsPayload, SaveSettingsResult, Settings } from '@shared/types'
+import type { Live2dImportResult, PetStyleState, WorkEncouragerApi } from '@shared/api'
 import { LocalService } from './service'
 import { parseDb } from './db'
 import { latestSettingsEntry } from '@shared/engine'
@@ -85,6 +85,53 @@ export class TauriApi implements WorkEncouragerApi {
   onPetTapped(callback: (stats: PetStats) => void): () => void {
     this.petListeners.add(callback)
     return () => this.petListeners.delete(callback)
+  }
+
+  async getPetStyle(): Promise<PetStyleState> {
+    return { style: this.service.petStyle, model: this.service.live2dModel ?? null }
+  }
+
+  async setPetStyle(style: PetStyle): Promise<PetStyleState> {
+    await this.service.setPetStyle(style)
+    await invoke('pet_apply_style', { style })
+    return { style: this.service.petStyle, model: this.service.live2dModel ?? null }
+  }
+
+  /** Tauri 端用渲染层的文件夹选择器导入，这里保持接口形状一致 */
+  async importLive2d(): Promise<Live2dImportResult> {
+    return { canceled: true }
+  }
+
+  async removeLive2d(): Promise<PetStyleState> {
+    const model = this.service.live2dModel
+    if (model) {
+      await invoke('live2d_remove', { id: model.id })
+      await this.service.saveLive2dModel(null)
+    }
+    await this.service.setPetStyle('mochi')
+    await invoke('pet_apply_style', { style: 'mochi' })
+    return { style: this.service.petStyle, model: null }
+  }
+
+  async openLive2dFolder(): Promise<boolean> {
+    await invoke('live2d_open_folder')
+    return true
+  }
+
+  async getPetEnv() {
+    const env = await invoke<{
+      x: number
+      y: number
+      width: number
+      height: number
+      work_area: { x: number; y: number; width: number; height: number }
+    }>('pet_env')
+    return { x: env.x, y: env.y, width: env.width, height: env.height, workArea: env.work_area }
+  }
+
+  async movePet(x: number, y: number): Promise<boolean> {
+    await invoke('move_pet_window', { x, y })
+    return true
   }
 
   private async maybeSettle(now: number): Promise<void> {

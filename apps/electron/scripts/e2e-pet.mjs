@@ -152,7 +152,7 @@ try {
   await screenshot(pet.webSocketDebuggerUrl, 'pet-idle.png')
 
   for (let i = 0; i < 3; i += 1) {
-    await evaluate(pet.webSocketDebuggerUrl, `document.querySelector('.pet-stage').click()`)
+    await evaluate(pet.webSocketDebuggerUrl, `document.querySelector('.pet-svg').dispatchEvent(new MouseEvent('click',{bubbles:true}))`)
     await sleep(420)
   }
   const tappedText = await evaluate(pet.webSocketDebuggerUrl, `document.querySelector('.pet-pill').innerText`)
@@ -177,7 +177,7 @@ try {
 
   // 再点两次凑满 5 次，触发气泡台词，截图给视觉验收
   for (let i = 0; i < 2; i += 1) {
-    await evaluate(pet.webSocketDebuggerUrl, `document.querySelector('.pet-stage').click()`)
+    await evaluate(pet.webSocketDebuggerUrl, `document.querySelector('.pet-svg').dispatchEvent(new MouseEvent('click',{bubbles:true}))`)
     await sleep(320)
   }
   const bubble = await evaluate(pet.webSocketDebuggerUrl, `document.querySelector('.pet-bubble').classList.contains('show')`)

@@ -1,3 +1,4 @@
+import { dirname, join } from 'node:path'
 import type {
   AppDb,
   AppState,
@@ -5,8 +6,10 @@ import type {
   DayRecord,
   HistoryRow,
   HistoryView,
+  Live2dModelInfo,
   PauseInterval,
   PetStats,
+  PetStyle,
   SaveSettingsPayload,
   SaveSettingsResult,
   Settings,
@@ -196,6 +199,28 @@ export class AppService {
 
   savePetBounds(bounds: { x: number; y: number }): void {
     this.store.savePetBounds(bounds)
+  }
+
+  /** 桌面形象：团子猫或 Live2D，切换后立即可用（与工资设置无关，不进设置时间线） */
+  get petStyle(): PetStyle {
+    return this.db.petStyle === 'live2d' ? 'live2d' : 'mochi'
+  }
+
+  setPetStyle(style: PetStyle): void {
+    this.store.savePetStyle(style)
+  }
+
+  get live2dModel(): Live2dModelInfo | null {
+    return this.db.live2d ?? null
+  }
+
+  saveLive2dModel(info: Live2dModelInfo | null): void {
+    this.store.saveLive2d(info)
+  }
+
+  /** Live2D 模型文件根目录：<userData>/live2d */
+  live2dRoot(): string {
+    return join(dirname(this.store.path), 'live2d')
   }
 
   effectiveSettingsFor(dateKey: string): Settings {

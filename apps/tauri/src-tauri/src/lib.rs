@@ -365,6 +365,185 @@ fn data_path(app: AppHandle) -> Result<String, String> {
   Ok(db_path(&resolve_data_dir(&app)?).to_string_lossy().to_string())
 }
 
+// ---------- Live2D 模型 ----------
+
+fn live2d_root(app: &AppHandle) -> Result<PathBuf, String> {
+  Ok(resolve_data_dir(app)?.join("live2d"))
+}
+
+fn valid_model_id(id: &str) -> bool {
+  id.len() >= 8 && id.len() <= 40 && id.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// 前端把整理好的文件（贴图已降采样）以 base64 传过来，这里只负责落盘
+#[tauri::command]
+fn live2d_save(app: AppHandle, id: String, files: Vec<(String, String)>) -> Result<(), String> {
+  use base64::Engine;
+
+  if !valid_model_id(&id) {
+    return Err("模型 id 不合法".to_string());
+  }
+  let root = live2d_root(&app)?.join(&id);
+  let _ = fs::remove_dir_all(&root);
+  fs::create_dir_all(&root).map_err(|error| format!("创建模型目录失败：{error}"))?;
+  let engine = base64::engine::general_purpose::STANDARD;
+  for (name, data) in files {
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
+      return Err(format!("文件名不合法：{name}"));
+    }
+    let target = root.join(&name);
+    if let Some(parent) = target.parent() {
+      fs::create_dir_all(parent).map_err(|error| format!("创建目录失败：{error}"))?;
+    }
+    let raw = data.split_once("base64,").map(|(_, rest)| rest).unwrap_or(&data);
+    let bytes = engine
+      .decode(raw.as_bytes())
+      .map_err(|error| format!("解码 {name} 失败：{error}"))?;
+    fs::write(&target, bytes).map_err(|error| format!("写入 {name} 失败：{error}"))?;
+  }
+  Ok(())
+}
+
+#[tauri::command]
+fn live2d_remove(app: AppHandle, id: String) -> Result<(), String> {
+  if !valid_model_id(&id) {
+    return Ok(());
+  }
+  let root = live2d_root(&app)?.join(&id);
+  if root.exists() {
+    fs::remove_dir_all(&root).map_err(|error| format!("删除模型失败：{error}"))?;
+  }
+  Ok(())
+}
+
+#[tauri::command]
+fn live2d_open_folder(app: AppHandle) -> Result<(), String> {
+  let root = live2d_root(&app)?;
+  fs::create_dir_all(&root).map_err(|error| format!("创建模型目录失败：{error}"))?;
+  Command::new("explorer")
+    .arg(root.as_os_str())
+    .spawn()
+    .map_err(|error| format!("打开模型目录失败：{error}"))?;
+  Ok(())
+}
+
+/// Windows 上自定义协议实际走 http://live2d.localhost/<id>/<file>
+#[tauri::command]
+fn live2d_base_url() -> String {
+  "http://live2d.localhost/".to_string()
+}
+
+#[tauri::command]
+fn pet_apply_style(app: AppHandle, style: String) -> Result<(), String> {
+  let Some(pet) = app.get_webview_window("pet") else {
+    return Ok(());
+  };
+  let (width, height) = if style == "live2d" {
+    (300.0, 360.0)
+  } else {
+    (256.0, 280.0)
+  };
+  pet
+    .set_size(tauri::LogicalSize::new(width, height))
+    .map_err(|error| format!("调整宠物窗口尺寸失败：{error}"))?;
+  Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct PetEnv {
+  x: f64,
+  y: f64,
+  width: f64,
+  height: f64,
+  work_area: PetArea,
+}
+
+#[derive(serde::Serialize)]
+struct PetArea {
+  x: f64,
+  y: f64,
+  width: f64,
+  height: f64,
+}
+
+#[tauri::command]
+fn pet_env(app: AppHandle) -> Result<PetEnv, String> {
+  let pet = app
+    .get_webview_window("pet")
+    .ok_or_else(|| "宠物窗口未创建".to_string())?;
+  let scale = pet.scale_factor().unwrap_or(1.0);
+  let position = pet
+    .outer_position()
+    .map_err(|error| format!("读取宠物窗口位置失败：{error}"))?;
+  let size = pet
+    .outer_size()
+    .map_err(|error| format!("读取宠物窗口尺寸失败：{error}"))?;
+  let monitor = pet
+    .current_monitor()
+    .ok()
+    .flatten()
+    .or_else(|| pet.primary_monitor().ok().flatten());
+  let area = monitor
+    .map(|monitor| {
+      let position = monitor.position();
+      let size = monitor.size();
+      PetArea {
+        x: position.x as f64 / scale,
+        y: position.y as f64 / scale,
+        width: size.width as f64 / scale,
+        height: size.height as f64 / scale,
+      }
+    })
+    .unwrap_or(PetArea {
+      x: 0.0,
+      y: 0.0,
+      width: 1920.0,
+      height: 1080.0,
+    });
+  Ok(PetEnv {
+    x: position.x as f64 / scale,
+    y: position.y as f64 / scale,
+    width: size.width as f64 / scale,
+    height: size.height as f64 / scale,
+    work_area: area,
+  })
+}
+
+#[tauri::command]
+fn move_pet_window(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
+  let Some(pet) = app.get_webview_window("pet") else {
+    return Ok(());
+  };
+  if !x.is_finite() || !y.is_finite() {
+    return Ok(());
+  }
+  pet
+    .set_position(tauri::LogicalPosition::new(x, y))
+    .map_err(|error| format!("移动宠物窗口失败：{error}"))
+}
+
+fn serve_live2d(app: &AppHandle, path: &str) -> Option<(Vec<u8>, &'static str)> {
+  let trimmed = path.trim_start_matches('/');
+  let mut parts = trimmed.splitn(2, '/');
+  let id = parts.next()?;
+  let relative = parts.next()?;
+  if !valid_model_id(id) || relative.is_empty() || relative.contains("..") {
+    return None;
+  }
+  let file = live2d_root(app).ok()?.join(id).join(relative);
+  let bytes = fs::read(&file).ok()?;
+  let mime = if relative.ends_with(".moc3") {
+    "application/octet-stream"
+  } else if relative.ends_with(".json") {
+    "application/json"
+  } else if relative.ends_with(".png") {
+    "image/png"
+  } else {
+    "application/octet-stream"
+  };
+  Some((bytes, mime))
+}
+
 #[tauri::command]
 fn app_version() -> String {
   env!("CARGO_PKG_VERSION").to_string()
@@ -646,6 +825,30 @@ pub fn run() {
       show_main(app);
     }))
     .plugin(tauri_plugin_notification::init())
+    .register_uri_scheme_protocol("live2d", |ctx, request| {
+      let app = ctx.app_handle();
+      let path = request.uri().path().to_string();
+      match serve_live2d(app, &path) {
+        Some((bytes, mime)) => {
+          let body: std::borrow::Cow<'static, [u8]> = bytes.into();
+          tauri::http::Response::builder()
+            .status(200)
+            .header("Content-Type", mime)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Cache-Control", "no-cache")
+            .body(body)
+            .unwrap_or_else(|_| tauri::http::Response::new(std::borrow::Cow::Borrowed(&[])))
+        }
+        None => {
+          let body: std::borrow::Cow<'static, [u8]> = Vec::new().into();
+          tauri::http::Response::builder()
+            .status(404)
+            .header("Access-Control-Allow-Origin", "*")
+            .body(body)
+            .unwrap_or_else(|_| tauri::http::Response::new(std::borrow::Cow::Borrowed(&[])))
+        }
+      }
+    })
     .invoke_handler(tauri::generate_handler![
       load_db,
       save_db,
@@ -663,7 +866,14 @@ pub fn run() {
       show_pet_window,
       hide_pet_window,
       toggle_pet_window,
-      save_pet_bounds
+      save_pet_bounds,
+      live2d_save,
+      live2d_remove,
+      live2d_open_folder,
+      live2d_base_url,
+      pet_apply_style,
+      pet_env,
+      move_pet_window
     ])
     .setup(|app| {
       let data_dir = if let Some(dir) = std::env::var_os("WORK_ENC_DATA_DIR") {
@@ -722,6 +932,13 @@ pub fn run() {
         }
         let _ = pet.set_skip_taskbar(true);
         set_taskbar_hidden(&pet);
+        // 用 Live2D 形象时窗口要比团子猫大一圈，否则角色会被裁掉
+        let style = read_db(app.handle())
+          .and_then(|db| db.get("petStyle").and_then(|value| value.as_str().map(str::to_string)))
+          .unwrap_or_else(|| "mochi".to_string());
+        if style == "live2d" {
+          let _ = pet.set_size(tauri::LogicalSize::new(300.0, 360.0));
+        }
       }
       spawn_reminders(app.handle().clone());
       Ok(())

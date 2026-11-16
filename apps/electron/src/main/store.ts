@@ -1,6 +1,13 @@
 import { existsSync } from 'node:fs'
 import Store from 'electron-store'
-import type { AppDb, PauseInterval, Settings, SettingsEntry } from '@shared/types'
+import type {
+  AppDb,
+  Live2dModelInfo,
+  PauseInterval,
+  PetStyle,
+  Settings,
+  SettingsEntry
+} from '@shared/types'
 import { defaultSettings } from '@shared/defaults'
 import { toDateKey } from '@shared/date'
 import { mergeIntervals } from '@shared/intervals'
@@ -138,7 +145,23 @@ export function normalizeDb(raw: Partial<AppDb>, now: number): AppDb {
       Number.isFinite(raw.petBounds.x) &&
       Number.isFinite(raw.petBounds.y)
         ? { x: Number(raw.petBounds.x), y: Number(raw.petBounds.y) }
-        : null
+        : null,
+    petStyle: raw.petStyle === 'live2d' ? 'live2d' : 'mochi',
+    live2d: normalizeLive2d(raw.live2d)
+  }
+}
+
+/** Live2D 模型元信息：只接受我们自己写入的字段，id 用于拼自定义协议与磁盘目录 */
+function normalizeLive2d(raw: unknown): Live2dModelInfo | null {
+  if (!raw || typeof raw !== 'object') return null
+  const item = raw as Partial<Live2dModelInfo>
+  if (typeof item.id !== 'string' || !/^[a-f0-9]{8,40}$/.test(item.id)) return null
+  return {
+    id: item.id,
+    name: typeof item.name === 'string' && item.name ? item.name : 'Live2D 模型',
+    importedAt: Number(item.importedAt) || 0,
+    textures: Number(item.textures) || 0,
+    source: typeof item.source === 'string' ? item.source : ''
   }
 }
 
@@ -166,6 +189,8 @@ export interface StoreHandle {
   saveFloatBounds(bounds: { x: number; y: number }): void
   savePetCounts(daily: Record<string, number>, total: number): void
   savePetBounds(bounds: { x: number; y: number }): void
+  savePetStyle(style: PetStyle): void
+  saveLive2d(info: Live2dModelInfo | null): void
 }
 
 export function openStore(cwd?: string): StoreHandle {
@@ -252,6 +277,14 @@ export function openStore(cwd?: string): StoreHandle {
     savePetBounds(bounds) {
       db.petBounds = { x: Math.round(bounds.x), y: Math.round(bounds.y) }
       persist('petBounds', db.petBounds)
+    },
+    savePetStyle(style) {
+      db.petStyle = style === 'live2d' ? 'live2d' : 'mochi'
+      persist('petStyle', db.petStyle)
+    },
+    saveLive2d(info) {
+      db.live2d = info
+      persist('live2d', db.live2d)
     }
   }
 }

@@ -62,6 +62,16 @@ export function createFloatApi(): WorkEncouragerApi {
     onTimerChanged: () => () => undefined,
     onSettingsApplied: () => () => undefined,
     onHistoryUpdated: () => () => undefined,
-    onPetTapped: () => () => undefined
+    onPetTapped: () => () => undefined,
+    getPetStyle: async () => {
+      const service = await loadService()
+      return { style: service.petStyle, model: service.live2dModel }
+    },
+    setPetStyle: fail,
+    importLive2d: async () => ({ canceled: true }),
+    removeLive2d: fail,
+    openLive2dFolder: fail,
+    getPetEnv: fail,
+    movePet: fail
   }
 }

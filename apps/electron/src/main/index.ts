@@ -1,14 +1,35 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, screen, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  net,
+  Notification,
+  protocol,
+  screen,
+  shell
+} from 'electron'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { AppService } from './service'
 import { DataStoreError, openStore, type StoreHandle } from './store'
 import { TrayController } from './tray'
 import { ReminderService } from './reminders'
 import { runDevSmoke } from './dev-smoke'
-import type { SaveSettingsPayload } from '@shared/types'
+import { importLive2dModel, removeLive2dModel } from './live2d-import'
+import type { PetStyle, SaveSettingsPayload } from '@shared/types'
 import { latestSettingsEntry } from '@shared/engine'
 import { toDateKey } from '@shared/date'
+
+// Live2D 模型走自定义协议加载：文件名是 ASCII，避免 file:// 与中文路径在打包后失效
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'live2d',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
+  }
+])
 
 const APP_ID = 'com.workencourager.app'
 const resourcesDir = app.isPackaged
@@ -181,35 +202,66 @@ function expandFloat(): void {
   updateTray()
 }
 
-const PET_WIDTH = 256
-const PET_HEIGHT = 280
+/** 团子猫与 Live2D 需要的窗口尺寸不同：Live2D 要给身体和气泡留出空间 */
+const PET_SIZE: Record<PetStyle, { width: number; height: number }> = {
+  mochi: { width: 256, height: 280 },
+  live2d: { width: 300, height: 360 }
+}
+
+function petSize(): { width: number; height: number } {
+  const style = service?.petStyle ?? 'mochi'
+  return PET_SIZE[style]
+}
 
 function defaultPetBounds(): { x: number; y: number } {
   const area = screen.getPrimaryDisplay().workArea
+  const size = petSize()
   return {
-    x: area.x + area.width - PET_WIDTH - 280,
-    y: area.y + area.height - PET_HEIGHT - 24
+    x: area.x + area.width - size.width - 280,
+    y: area.y + area.height - size.height - 24
   }
+}
+
+/**
+ * live2d://<modelId>/model3.json → <userData>/live2d/<modelId>/model3.json
+ * 只允许访问已导入模型目录内的文件，id 与相对路径都做白名单校验。
+ */
+function registerLive2dProtocol(): void {
+  protocol.handle('live2d', async (request) => {
+    try {
+      const url = new URL(request.url)
+      const id = url.hostname
+      const relative = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+      if (!service || !/^[a-f0-9]{8,40}$/.test(id) || !relative || relative.includes('..')) {
+        return new Response('not found', { status: 404 })
+      }
+      const file = join(service.live2dRoot(), id, relative)
+      return await net.fetch(pathToFileURL(file).toString())
+    } catch {
+      return new Response('not found', { status: 404 })
+    }
+  })
 }
 
 function createPetWindow(): BrowserWindow {
   if (petWindow) return petWindow
+  const size = petSize()
   const fallback = defaultPetBounds()
   const saved = service?.petBounds
   const position = saved ?? fallback
   const onScreen = screen.getAllDisplays().some((display) => {
     const area = display.workArea
     return (
-      position.x + PET_WIDTH > area.x + 40 &&
+      position.x + size.width > area.x + 40 &&
       position.x < area.x + area.width - 40 &&
-      position.y + PET_HEIGHT > area.y + 40 &&
+      position.y + size.height > area.y + 40 &&
       position.y < area.y + area.height - 40
     )
   })
   const initial = onScreen ? position : fallback
   const window = new BrowserWindow({
-    width: PET_WIDTH,
-    height: PET_HEIGHT,
+    width: size.width,
+    height: size.height,
     x: initial.x,
     y: initial.y,
     show: false,
@@ -277,6 +329,17 @@ function hidePet(): boolean {
 function togglePet(): boolean {
   if (petVisible()) return hidePet()
   return showPet()
+}
+
+/** 形象（团子猫 ↔ Live2D）切换后窗口尺寸不同，直接重建窗口并保留可见性 */
+function recreatePetWindow(keepVisible: boolean): void {
+  const visible = keepVisible || petVisible()
+  if (petWindow) {
+    petWindow.destroy()
+    petWindow = null
+  }
+  if (visible) createPetWindow().showInactive()
+  updateTray()
 }
 
 function requestClose(): void {
@@ -532,11 +595,83 @@ function registerIpc(): void {
   ipcMain.handle('pet:hide', () => hidePet())
 
   ipcMain.handle('pet:toggle', () => togglePet())
+
+  ipcMain.handle('pet:style', () => ({
+    style: getService().petStyle,
+    model: getService().live2dModel
+  }))
+
+  ipcMain.handle('pet:style:set', (_event, style: PetStyle) => {
+    const serviceRef = getService()
+    serviceRef.setPetStyle(style === 'live2d' ? 'live2d' : 'mochi')
+    recreatePetWindow(false)
+    return { style: serviceRef.petStyle, model: serviceRef.live2dModel }
+  })
+
+  ipcMain.handle('live2d:import', async () => {
+    const serviceRef = getService()
+    const options: Electron.OpenDialogOptions = {
+      title: '选择 Live2D 模型（.model3.json）',
+      properties: ['openFile'],
+      filters: [{ name: 'Live2D 模型', extensions: ['json'] }]
+    }
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options)
+    if (result.canceled || result.filePaths.length === 0) return { canceled: true as const }
+    const imported = await importLive2dModel(result.filePaths[0], serviceRef.live2dRoot())
+    serviceRef.saveLive2dModel(imported.info)
+    serviceRef.setPetStyle('live2d')
+    recreatePetWindow(true)
+    return { canceled: false as const, info: imported.info, stats: imported.stats }
+  })
+
+  ipcMain.handle('live2d:remove', async () => {
+    const serviceRef = getService()
+    const model = serviceRef.live2dModel
+    if (model) await removeLive2dModel(serviceRef.live2dRoot(), model.id)
+    serviceRef.saveLive2dModel(null)
+    serviceRef.setPetStyle('mochi')
+    recreatePetWindow(false)
+    return { style: serviceRef.petStyle }
+  })
+
+  ipcMain.handle('live2d:open-folder', () => {
+    const root = getService().live2dRoot()
+    mkdirSync(root, { recursive: true })
+    void shell.openPath(root)
+    return true
+  })
+
+  ipcMain.handle('pet:env', () => {
+    const window = createPetWindow()
+    const bounds = window.getBounds()
+    const display = screen.getDisplayMatching(bounds)
+    return {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      workArea: {
+        x: display.workArea.x,
+        y: display.workArea.y,
+        width: display.workArea.width,
+        height: display.workArea.height
+      }
+    }
+  })
+
+  ipcMain.handle('pet:move', (_event, x: number, y: number) => {
+    const window = petWindow
+    if (!window) return false
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+    window.setPosition(Math.round(x), Math.round(y), false)
+    return true
+  })
 }
 
 function bootstrap(): void {
   app.setAppUserModelId(APP_ID)
-  app.disableHardwareAcceleration()
 
   if (!app.requestSingleInstanceLock()) {
     app.quit()
@@ -579,6 +714,7 @@ function bootstrap(): void {
     }
 
     nativeTheme.themeSource = currentSettings().theme
+    registerLive2dProtocol()
     createWindow()
     createTray()
     reminders = new ReminderService(service, () => showWindow())

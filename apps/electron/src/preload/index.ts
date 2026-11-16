@@ -21,6 +21,13 @@ const api: WorkEncouragerApi = {
   showPet: () => ipcRenderer.invoke('pet:show'),
   hidePet: () => ipcRenderer.invoke('pet:hide'),
   togglePet: () => ipcRenderer.invoke('pet:toggle'),
+  getPetStyle: () => ipcRenderer.invoke('pet:style'),
+  setPetStyle: (style) => ipcRenderer.invoke('pet:style:set', style),
+  importLive2d: () => ipcRenderer.invoke('live2d:import'),
+  removeLive2d: () => ipcRenderer.invoke('live2d:remove'),
+  openLive2dFolder: () => ipcRenderer.invoke('live2d:open-folder'),
+  getPetEnv: () => ipcRenderer.invoke('pet:env'),
+  movePet: (x, y) => ipcRenderer.invoke('pet:move', x, y),
   onPetTapped(callback) {
     const listener = (_event: unknown, stats: PetStats) => callback(stats)
     ipcRenderer.on('pet:tapped', listener)

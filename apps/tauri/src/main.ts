@@ -53,7 +53,14 @@ function brokenApi(message: string): WorkEncouragerApi {
     onTimerChanged: () => () => undefined,
     onSettingsApplied: () => () => undefined,
     onHistoryUpdated: () => () => undefined,
-    onPetTapped: () => () => undefined
+    onPetTapped: () => () => undefined,
+    getPetStyle: fail,
+    setPetStyle: fail,
+    importLive2d: fail,
+    removeLive2d: fail,
+    openLive2dFolder: fail,
+    getPetEnv: fail,
+    movePet: fail
   }
 }
 

@@ -62,6 +62,28 @@ export function createPetApi(): WorkEncouragerApi {
     onTimerChanged: () => () => undefined,
     onSettingsApplied: () => () => undefined,
     onHistoryUpdated: () => () => undefined,
-    onPetTapped: () => () => undefined
+    onPetTapped: () => () => undefined,
+    getPetStyle: async () => {
+      const service = await loadService()
+      return { style: service.petStyle, model: service.live2dModel }
+    },
+    setPetStyle: fail,
+    importLive2d: async () => ({ canceled: true }),
+    removeLive2d: fail,
+    openLive2dFolder: fail,
+    getPetEnv: async () => {
+      const env = await invoke<{
+        x: number
+        y: number
+        width: number
+        height: number
+        work_area: { x: number; y: number; width: number; height: number }
+      }>('pet_env')
+      return { x: env.x, y: env.y, width: env.width, height: env.height, workArea: env.work_area }
+    },
+    movePet: async (x: number, y: number) => {
+      await invoke('move_pet_window', { x, y })
+      return true
+    }
   }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { PetStats } from '@shared/types'
+import PetLive2D from '../components/PetLive2D.vue'
 
 const stats = ref<PetStats>({ dateKey: '', today: 0, total: 0 })
 const tapping = ref(false)
@@ -8,6 +9,11 @@ const happy = ref(false)
 const sleeping = ref(false)
 const bubble = ref('')
 const floaters = ref<Array<{ id: number; left: number }>>([])
+const style = ref<'mochi' | 'live2d'>('mochi')
+const modelId = ref('')
+
+/** Tauri 的自定义协议在 Windows 上映射成 http://live2d.localhost/<id>/<file> */
+const modelBase = computed(() => (modelId.value ? `http://live2d.localhost/${modelId.value}/` : ''))
 
 let tapTimer: number | undefined
 let happyTimer: number | undefined
@@ -83,6 +89,17 @@ function close(): void {
   void window.workEncourager.hidePet()
 }
 
+const LIFT_PHRASES = ['放我下来啦～', '喂喂，别拎我', '这样看你好高啊', '轻一点，会晕的']
+const DROP_PHRASES = ['哎哟，屁股疼', '下次接住我嘛', '落地成功！']
+
+function onLift(): void {
+  showBubble(LIFT_PHRASES[Math.floor(Math.random() * LIFT_PHRASES.length)])
+}
+
+function onDrop(): void {
+  showBubble(DROP_PHRASES[Math.floor(Math.random() * DROP_PHRASES.length)])
+}
+
 onMounted(async () => {
   try {
     const current = await window.workEncourager.getPet()
@@ -90,6 +107,14 @@ onMounted(async () => {
     if (current.today > 0) showBubble(`今天已经摸鱼 ${current.today} 次了`)
   } catch {
     // 读取失败时从 0 开始显示，不影响点击
+  }
+  try {
+    const petStyle = await window.workEncourager.getPetStyle()
+    style.value = petStyle.style
+    modelId.value = petStyle.model?.id ?? ''
+    if (petStyle.style === 'live2d' && !petStyle.model) style.value = 'mochi'
+  } catch {
+    style.value = 'mochi'
   }
   idleTimer = window.setInterval(() => {
     if (Date.now() - lastTapAt > 5 * 60 * 1000) sleeping.value = true
@@ -110,13 +135,21 @@ onBeforeUnmount(() => {
 
     <div
       class="pet-stage"
-      :class="{ 'is-tapped': tapping, 'is-happy': happy, 'is-sleeping': sleeping }"
-      title="点一下，摸鱼 +1"
-      @click="tap"
+      :class="{ 'is-tapped': tapping, 'is-happy': happy, 'is-sleeping': sleeping, 'is-live2d': style === 'live2d' }"
+      :title="style === 'mochi' ? '点一下，摸鱼 +1' : '点一下摸鱼 +1 · 拖住可以拎起来'"
     >
       <div class="pet-bubble" :class="{ show: !!bubble }">{{ bubble }}</div>
 
-      <svg class="pet-svg" viewBox="0 0 220 210" aria-label="摸鱼小宠物">
+      <PetLive2D
+        v-if="style === 'live2d' && modelId"
+        :model-id="modelId"
+        :model-base="modelBase"
+        @tap="tap"
+        @lift="onLift"
+        @drop="onDrop"
+      />
+
+      <svg v-else class="pet-svg" viewBox="0 0 220 210" aria-label="摸鱼小宠物" @click="tap">
         <ellipse cx="110" cy="194" rx="60" ry="8" fill="rgba(46,86,68,0.10)" />
 
         <path
@@ -314,6 +347,14 @@ onBeforeUnmount(() => {
   flex: none;
   cursor: pointer;
   -webkit-app-region: no-drag;
+}
+
+.pet-stage.is-live2d {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  cursor: default;
 }
 
 .pet-svg {

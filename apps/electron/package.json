@@ -1,6 +1,6 @@
 {
   "name": "@we/electron",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "上班鼓励器 Electron 版 - 把上班的每一秒，都换成看得见的收获",
   "main": "./out/main/index.js",
   "author": "Work Encourager",
@@ -21,8 +21,12 @@
     "package:dir": "electron-vite build && electron-builder --win --x64 --dir"
   },
   "dependencies": {
+    "@hazart-pkg/live2d-core": "1.0.1",
+    "@pixi/unsafe-eval": "6.5.10",
     "decimal.js": "10.6.0",
-    "electron-store": "8.2.0"
+    "electron-store": "8.2.0",
+    "pixi-live2d-display": "0.4.0",
+    "pixi.js": "6.5.10"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { SaveSettingsResult, Settings } from '@shared/types'
 import { defaultSettings, WEEKDAY_SHORT } from '@shared/defaults'
 import { firstIssueMap, validateSettings } from '@shared/validation'
 import { buildShiftShape } from '@shared/schedule'
 import { formatMoney, formatPerSecond, resolveWage } from '@shared/wage'
 import { minutesToHHMM, parseHHMM, toDateKey } from '@shared/date'
+import type { PetStyleState } from '@shared/api'
+import { importLive2dFromFiles } from '../live2d-import'
 import AppIcon from '../components/AppIcon.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import SaveScopeDialog from '../components/SaveScopeDialog.vue'
@@ -21,6 +23,78 @@ const emit = defineEmits<{
   (e: 'saved', result: SaveSettingsResult): void
   (e: 'toast', message: string): void
 }>()
+
+// ---- 桌面形象：独立于工资/排班草案，点击即生效，不走保存流程 ----
+const petStyle = ref<PetStyleState>({ style: 'mochi', model: null })
+const petBusy = ref(false)
+const petError = ref('')
+const modelInput = ref<HTMLInputElement | null>(null)
+
+async function loadPetStyle(): Promise<void> {
+  try {
+    petStyle.value = await window.workEncourager.getPetStyle()
+  } catch (error) {
+    petError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function choosePetStyle(next: 'mochi' | 'live2d'): Promise<void> {
+  petError.value = ''
+  if (next === petStyle.value.style) return
+  if (next === 'live2d' && !petStyle.value.model) {
+    modelInput.value?.click()
+    return
+  }
+  try {
+    petStyle.value = await window.workEncourager.setPetStyle(next)
+    emit('toast', next === 'live2d' ? '已切换到 Live2D 形象' : '已切换到糯米团子')
+  } catch (error) {
+    petError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function onModelPicked(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  input.value = ''
+  if (!files || files.length === 0) return
+  if (petBusy.value) return
+  petBusy.value = true
+  petError.value = ''
+  try {
+    const imported = await importLive2dFromFiles(files)
+    await window.workEncourager.setPetStyle('live2d')
+    petStyle.value = { style: 'live2d', model: imported.info }
+    const size = (imported.stats.bytes / 1024 / 1024).toFixed(1)
+    emit('toast', `已导入 ${imported.info.name}，贴图已压缩到 ${size} MB`)
+  } catch (error) {
+    petError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    petBusy.value = false
+  }
+}
+
+async function removeLive2d(): Promise<void> {
+  if (petBusy.value) return
+  petBusy.value = true
+  petError.value = ''
+  try {
+    petStyle.value = await window.workEncourager.removeLive2d()
+    emit('toast', '已删除本地模型，小宠物回到糯米团子')
+  } catch (error) {
+    petError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    petBusy.value = false
+  }
+}
+
+function openLive2dFolder(): void {
+  void window.workEncourager.openLive2dFolder()
+}
+
+onMounted(() => {
+  void loadPetStyle()
+})
 
 function clone(input: Settings): Settings {
   return JSON.parse(JSON.stringify(input)) as Settings
@@ -687,6 +761,84 @@ watch(
 
     <section class="card settings-card fade-in">
       <div class="section-head">
+        <span class="section-title">桌面形象</span>
+        <span class="section-hint">点击即生效</span>
+      </div>
+      <div class="form-stack">
+        <div class="field">
+          <span class="field-label">摸鱼小宠物的样子</span>
+          <div class="segmented segmented--small">
+            <button
+              type="button"
+              class="segmented-btn"
+              :class="{ 'segmented-btn--active': petStyle.style === 'mochi' }"
+              @click="choosePetStyle('mochi')"
+            >
+              糯米团子猫
+            </button>
+            <button
+              type="button"
+              class="segmented-btn"
+              :class="{ 'segmented-btn--active': petStyle.style === 'live2d' }"
+              :disabled="petBusy"
+              @click="choosePetStyle('live2d')"
+            >
+              Live2D 模型
+            </button>
+          </div>
+          <span class="field-hint">
+            团子猫零资源占用；Live2D 需要你自备模型文件夹，导入后本地渲染，不上传。
+          </span>
+        </div>
+
+        <div v-if="petStyle.model" class="pet-model">
+          <div class="pet-model-head">
+            <span class="pet-model-name">{{ petStyle.model.name }}</span>
+            <span class="pet-chip">{{ petStyle.model.textures }} 张贴图</span>
+          </div>
+          <span class="pet-model-meta">
+            已压缩到本地 · 导入于 {{ new Date(petStyle.model.importedAt).toLocaleDateString('zh-CN') }}
+          </span>
+          <div class="pet-model-actions">
+            <button type="button" class="btn btn-ghost btn-sm" :disabled="petBusy" @click="modelInput?.click()">
+              换一个模型
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" :disabled="petBusy" @click="openLive2dFolder">
+              打开模型目录
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm pet-danger" :disabled="petBusy" @click="removeLive2d">
+              删除
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="pet-model pet-model--empty">
+          <span class="pet-model-meta">
+            还没有导入模型。选中模型文件夹后，贴图会自动等比压缩到长边 1024 像素，显存占用从约 620 MB 降到 20 MB 以内。
+          </span>
+          <div class="pet-model-actions">
+            <button type="button" class="btn btn-primary btn-sm" :disabled="petBusy" @click="modelInput?.click()">
+              {{ petBusy ? '正在导入…' : '导入 Live2D 模型' }}
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" @click="openLive2dFolder">打开模型目录</button>
+          </div>
+        </div>
+
+        <p v-if="petError" class="field-error">{{ petError }}</p>
+        <input
+          ref="modelInput"
+          class="hidden-input"
+          type="file"
+          webkitdirectory
+          multiple
+          accept=".json,.moc3,.png"
+          @change="onModelPicked"
+        />
+      </div>
+    </section>
+
+    <section class="card settings-card fade-in">
+      <div class="section-head">
         <span class="section-title">外观与行为</span>
       </div>
       <div class="form-stack">
@@ -1153,5 +1305,82 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 210px;
+}
+
+/* 桌面形象分组 */
+.section-hint {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--chip, rgba(120, 200, 170, 0.14));
+}
+
+.pet-model {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  background: var(--surface-soft, rgba(255, 255, 255, 0.6));
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.06));
+}
+
+.pet-model--empty {
+  background: transparent;
+  border-style: dashed;
+}
+
+.pet-model-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pet-model-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pet-model-meta {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.pet-chip {
+  flex: none;
+  font-size: 10px;
+  color: var(--accent-strong, #2f6f5a);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--chip, rgba(120, 200, 170, 0.16));
+}
+
+.pet-model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.pet-model-actions .btn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.pet-danger {
+  color: var(--danger, #b4574f);
+  border-color: var(--danger-line, rgba(180, 87, 79, 0.32));
+}
+
+.hidden-input {
+  display: none;
 }
 </style>

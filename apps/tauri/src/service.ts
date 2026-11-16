@@ -7,7 +7,9 @@ import type {
   HistoryRow,
   HistoryView,
   PauseInterval,
+  Live2dModelInfo,
   PetStats,
+  PetStyle,
   SaveSettingsPayload,
   SaveSettingsResult,
   Settings,
@@ -240,6 +242,27 @@ export class LocalService {
 
   async savePetBounds(bounds: { x: number; y: number }): Promise<void> {
     this.db.petBounds = { x: Math.round(bounds.x), y: Math.round(bounds.y) }
+    await this.persist()
+  }
+
+  get petStyle(): PetStyle {
+    return this.db.petStyle ?? 'mochi'
+  }
+
+  get live2dModel(): Live2dModelInfo | null {
+    return this.db.live2d ?? null
+  }
+
+  async setPetStyle(style: PetStyle): Promise<PetStyle> {
+    const next: PetStyle = style === 'live2d' && this.db.live2d ? 'live2d' : 'mochi'
+    this.db.petStyle = next
+    await this.persist()
+    return next
+  }
+
+  async saveLive2dModel(info: Live2dModelInfo | null): Promise<void> {
+    this.db.live2d = info
+    if (!info && this.db.petStyle === 'live2d') this.db.petStyle = 'mochi'
     await this.persist()
   }
 }

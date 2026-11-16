@@ -115,6 +115,24 @@ export interface AppDb {
   /** 摸鱼小宠物：累计点击次数 */
   petTotal?: number
   petBounds?: { x: number; y: number } | null
+  /** 桌面形象：团子猫（矢量自绘）或 Live2D 模型 */
+  petStyle?: PetStyle
+  /** 已导入的 Live2D 模型信息（文件位于用户数据目录） */
+  live2d?: Live2dModelInfo | null
+}
+
+export type PetStyle = 'mochi' | 'live2d'
+
+export interface Live2dModelInfo {
+  /** 目录名，同时作为自定义协议里的模型 id */
+  id: string
+  /** 展示名，默认取 model3.json 的文件名 */
+  name: string
+  importedAt: number
+  /** 贴图数量 */
+  textures: number
+  /** 导入时的原始目录 */
+  source: string
 }
 
 export interface PetStats {
