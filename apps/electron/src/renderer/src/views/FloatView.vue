@@ -99,7 +99,7 @@ onBeforeUnmount(() => {
 .float-card {
   position: relative;
   width: 100%;
-  height: 100%;
+  height: auto;
   border-radius: 18px;
   padding: 11px 13px 10px;
   color: #eef7f1;

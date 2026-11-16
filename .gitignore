@@ -26,3 +26,8 @@ apps/slint/target/
 .idea/
 .DS_Store
 Thumbs.db
+
+# 用户自备的 Live2D 模型（构建时打进安装包，不入库）
+assets/live2d/
+apps/electron/resources/live2d/
+apps/tauri/src-tauri/resources/live2d/

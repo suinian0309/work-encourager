@@ -20,9 +20,14 @@ type AnyModel = {
   anchor: { set: (x: number, y: number) => void }
   position: { set: (x: number, y: number) => void }
   motion: (group: string, index?: number, priority?: number) => Promise<boolean>
+  autoUpdate: boolean
+  destroyed: boolean
+  update: (dt: number) => void
   internalModel: {
     originalWidth: number
     originalHeight: number
+    coreModel?: { setParameterValueById: (id: string, value: number, weight?: number) => void }
+    on?: (event: string, handler: () => void) => void
     motionManager: {
       groups: Record<string, string>
       definitions: Record<string, unknown[]>
@@ -279,7 +284,29 @@ async function boot(): Promise<void> {
     }
     model = instance
     app.stage.addChild(instance as unknown as never)
+    // cubism4 插件只有在 registerTicker 之后才认 autoUpdate 选项，
+    // 这里改成自己驱动，避免「模型加载成功但一动不动」
+    instance.autoUpdate = false
+    app.ticker.add(() => {
+      if (!instance.destroyed) instance.update(app.ticker.deltaMS)
+    })
     instance.internalModel.motionManager.groups.idle = 'Idle'
+    // 这套模型自带的 IDLE 只驱动汗滴/眼泪这类特效参数，主体几乎不动，
+    // 所以额外叠一层轻微的呼吸与摆动，让它在桌面上「活着」
+    instance.internalModel.on?.('beforeModelUpdate', () => {
+      const core = instance.internalModel.coreModel
+      if (!core) return
+      const t = performance.now() / 1000
+      const sway = Math.sin(t * 0.62) * 7
+      const nod = Math.sin(t * 0.97) * 3.5
+      const tilt = Math.sin(t * 0.43 + 1.1) * 2.6
+      const breath = (Math.sin(t * 1.55) + 1) / 2
+      core.setParameterValueById('ParamAngleX', sway)
+      core.setParameterValueById('ParamAngleY', nod)
+      core.setParameterValueById('ParamAngleZ', tilt)
+      core.setParameterValueById('ParamBodyAngleX', sway * 0.35)
+      core.setParameterValueById('ParamBreath', breath)
+    })
     frame()
     loading.value = false
     void instance.motion('Idle', 0, 1)

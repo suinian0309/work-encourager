@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+﻿use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -373,6 +373,86 @@ fn live2d_root(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn valid_model_id(id: &str) -> bool {
   id.len() >= 8 && id.len() <= 40 && id.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+  fs::create_dir_all(to)?;
+  for entry in fs::read_dir(from)? {
+    let entry = entry?;
+    let target = to.join(entry.file_name());
+    if entry.path().is_dir() {
+      copy_dir(&entry.path(), &target)?;
+    } else {
+      fs::copy(entry.path(), target)?;
+    }
+  }
+  Ok(())
+}
+
+/// 安装包里随附了一份整理好的 Live2D 模型，首次启动时放进数据目录并直接启用。
+/// 已经有模型（用户自己导入过）时什么都不做。
+fn install_bundled_model(app: &AppHandle) -> Result<(), String> {
+  let already = read_db(app)
+    .and_then(|db| db.get("live2d").cloned())
+    .map(|value| !value.is_null())
+    .unwrap_or(false);
+  if already {
+    return Ok(());
+  }
+  let resource = match app.path().resource_dir() {
+    Ok(dir) => dir,
+    Err(_) => return Ok(()),
+  };
+  let source = resource.join("resources").join("live2d");
+  let manifest_path = source.join("manifest.json");
+  if !manifest_path.exists() {
+    return Ok(());
+  }
+  let manifest: Value = serde_json::from_str(
+    &fs::read_to_string(&manifest_path).map_err(|error| format!("读取内置模型清单失败：{error}"))?,
+  )
+  .map_err(|error| format!("内置模型清单不是有效 JSON：{error}"))?;
+  let id = manifest
+    .get("id")
+    .and_then(|value| value.as_str())
+    .unwrap_or("")
+    .to_string();
+  if !valid_model_id(&id) {
+    return Ok(());
+  }
+  let from = source.join(&id);
+  if !from.join("model3.json").exists() {
+    return Ok(());
+  }
+  let to = live2d_root(app)?.join(&id);
+  let _ = fs::remove_dir_all(&to);
+  copy_dir(&from, &to).map_err(|error| format!("安装内置模型失败：{error}"))?;
+
+  let name = manifest
+    .get("name")
+    .and_then(|value| value.as_str())
+    .unwrap_or("内置模型")
+    .to_string();
+  let textures = manifest.get("textures").and_then(|value| value.as_u64()).unwrap_or(0);
+  let imported_at = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|elapsed| elapsed.as_millis() as u64)
+    .unwrap_or(0);
+  let mut db = read_db(app).unwrap_or_else(|| serde_json::json!({}));
+  if let Some(object) = db.as_object_mut() {
+    object.insert(
+      "live2d".to_string(),
+      serde_json::json!({
+        "id": id,
+        "name": name,
+        "importedAt": imported_at,
+        "textures": textures,
+        "source": "bundled"
+      }),
+    );
+    object.insert("petStyle".to_string(), serde_json::json!("live2d"));
+  }
+  write_db_text(app, &serde_json::to_string(&db).map_err(|error| error.to_string())?)
 }
 
 /// 前端把整理好的文件（贴图已降采样）以 base64 传过来，这里只负责落盘
@@ -897,6 +977,7 @@ pub fn run() {
         data_dir,
         fired: Mutex::new(fired),
       });
+      let _ = install_bundled_model(app.handle());
       create_tray(app.handle())?;
       if let Some(float) = app.get_webview_window("float") {
         if let Ok(Some(monitor)) = float.primary_monitor() {
@@ -904,7 +985,7 @@ pub fn run() {
           let size = monitor.size();
           let position = monitor.position();
           let x = position.x as f64 / scale + size.width as f64 / scale - 288.0;
-          let y = position.y as f64 / scale + size.height as f64 / scale - 180.0;
+          let y = position.y as f64 / scale + size.height as f64 / scale - 131.0;
           let _ = float.set_position(tauri::PhysicalPosition::new(x, y));
         }
         let _ = float.set_skip_taskbar(true);

@@ -10,7 +10,7 @@ import {
   screen,
   shell
 } from 'electron'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { AppService } from './service'
@@ -96,7 +96,7 @@ function updateTray(): void {
 }
 
 const FLOAT_WIDTH = 268
-const FLOAT_HEIGHT = 160
+const FLOAT_HEIGHT = 111
 
 function defaultFloatBounds(): { x: number; y: number } {
   const area = screen.getPrimaryDisplay().workArea
@@ -388,7 +388,7 @@ function createTray(): void {
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 380,
-    height: 720,
+    height: 736,
     minWidth: 340,
     minHeight: 540,
     show: false,
@@ -502,6 +502,42 @@ function startTick(): void {
   }
   tick()
   ticking = setInterval(tick, 1000)
+}
+
+/**
+ * 安装包里随附了一份整理好的 Live2D 模型（用户自备素材，构建时打包）。
+ * 首次启动时把它放进用户数据目录并直接启用，用户不需要自己导入。
+ * 已经存在模型（用户自己导入过）时不做任何覆盖。
+ */
+function ensureBundledModel(): void {
+  if (!service || service.live2dModel) return
+  const source = join(resourcesDir, 'live2d')
+  const manifestPath = join(source, 'manifest.json')
+  if (!existsSync(manifestPath)) return
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      id?: string
+      name?: string
+      textures?: number
+    }
+    const id = String(manifest.id ?? '')
+    if (!/^[a-f0-9]{8,40}$/.test(id)) return
+    const from = join(source, id)
+    if (!existsSync(from)) return
+    const to = join(service.live2dRoot(), id)
+    rmSync(to, { recursive: true, force: true })
+    cpSync(from, to, { recursive: true })
+    service.saveLive2dModel({
+      id,
+      name: manifest.name || '内置模型',
+      importedAt: Date.now(),
+      textures: manifest.textures ?? 0,
+      source: 'bundled'
+    })
+    service.setPetStyle('live2d')
+  } catch (error) {
+    reportError(error, '安装内置模型失败')
+  }
 }
 
 function registerIpc(): void {
@@ -733,6 +769,7 @@ function bootstrap(): void {
 
     createWindow()
     createTray()
+    ensureBundledModel()
     reminders = new ReminderService(service, () => showWindow())
     registerIpc()
     startTick()

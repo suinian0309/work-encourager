@@ -1,5 +1,18 @@
 # 更新日志
 
+## 1.3.2
+
+### 新增
+
+- **模型随安装包附带**：构建时把整理好的 Live2D 模型打进安装包（Electron 放 `resources/live2d`，Tauri 走 `bundle.resources`），首次启动自动装进用户数据目录并切到 Live2D 形象，不用再自己导入；已经导入过模型的用户不受影响
+- 团子猫换成**小鱼**：米白＋薄荷绿的糯米小鱼，尾鳍、侧鳍、气泡、腮红和一个呆毛，动效沿用呼吸、眨眼、点击回弹、睡觉 zzz
+
+### 修复
+
+- **Live2D 一动不动**：`pixi-live2d-display` 只有在调用过 `registerTicker` 后才认 `autoUpdate`，而应用自己管渲染循环，导致模型加载成功但 `elapsedTime` 永远停在起始值。改成用 `app.ticker` 手动驱动 `model.update()`
+- 这套模型的 IDLE 只驱动汗滴、眼泪这类特效参数（`ParamAngleX`、`ParamBreath` 恒为 0），即使动作在播也看不出变化；现在叠了一层自写的呼吸与左右摆动（`ParamAngleX/Y/Z`、`ParamBodyAngleX`、`ParamBreath`）
+- **浮窗底部空一大块**：卡片原来被拉伸到窗口高度，内容只占 103 px 却撑在 160 px 的窗口里。卡片改为按内容高度收缩，窗口同步变成 268×111，卡片高度就和内容严丝合缝
+
 ## 1.3.1
 
 ### 修复

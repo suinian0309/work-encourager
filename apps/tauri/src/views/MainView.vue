@@ -176,6 +176,12 @@ const footerText = computed(() => {
   gap: 9px;
 }
 
+/* 列布局下卡片默认会被压缩（flex-shrink），「今日已赚」的金额底部就被切掉了。
+   这里禁止收缩，内容超出时交给 .screen 的纵向滚动。 */
+.main-screen > * {
+  flex: none;
+}
+
 .clock-block {
   padding: 6px 4px 0;
 }

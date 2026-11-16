@@ -149,88 +149,106 @@ onBeforeUnmount(() => {
         @drop="onDrop"
       />
 
-      <svg v-else class="pet-svg" viewBox="0 0 220 210" aria-label="摸鱼小宠物" @click="tap">
-        <ellipse cx="110" cy="194" rx="60" ry="8" fill="rgba(46,86,68,0.10)" />
+      <svg v-else class="pet-svg" viewBox="0 0 220 210" aria-label="摸鱼小鱼" @click="tap">
+        <ellipse cx="112" cy="186" rx="58" ry="8" fill="rgba(46,86,68,0.10)" />
 
-        <path
-          class="tail"
-          d="M164 152 C 190 152 202 128 192 106"
-          fill="none"
-          stroke="#9BE0C4"
-          stroke-width="12"
-          stroke-linecap="round"
-        />
+        <g class="tail">
+          <path
+            d="M58 112 C 34 96 16 84 14 70 C 30 74 46 88 56 98 C 58 78 54 62 44 50 C 64 56 76 80 78 104 Z"
+            fill="#A9E3C9"
+            stroke="#8FD8B8"
+            stroke-width="2"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M58 116 C 34 132 16 144 14 158 C 30 154 46 140 56 130 C 58 150 54 166 44 178 C 64 172 76 148 78 124 Z"
+            fill="#C6EDDC"
+            stroke="#8FD8B8"
+            stroke-width="2"
+            stroke-linejoin="round"
+          />
+        </g>
 
         <g class="pet-body-group">
           <path
-            d="M64 62 L56 26 L92 48 Z"
+            d="M104 58 Q118 30 138 56 Q124 66 104 58 Z"
             fill="#A9E3C9"
-            stroke="#A9E3C9"
-            stroke-width="6"
+            stroke="#8FD8B8"
+            stroke-width="2"
             stroke-linejoin="round"
           />
-          <path d="M66 56 L61 33 L84 48 Z" fill="#F7C9D3" />
-          <path
-            d="M156 62 L164 26 L128 48 Z"
-            fill="#A9E3C9"
-            stroke="#A9E3C9"
-            stroke-width="6"
-            stroke-linejoin="round"
-          />
-          <path d="M154 56 L159 33 L136 48 Z" fill="#F7C9D3" />
 
           <path
-            d="M110 40 C 150 40 174 70 174 110 C 174 152 147 176 110 176 C 73 176 46 152 46 110 C 46 70 70 40 110 40 Z"
+            d="M112 62 C 158 62 186 84 186 112 C 186 142 158 162 112 162 C 74 162 52 142 52 112 C 52 84 74 62 112 62 Z"
             fill="#FBF6EC"
             stroke="#EDE1CE"
             stroke-width="2"
           />
-          <ellipse cx="110" cy="158" rx="30" ry="15" fill="#F3FBF7" />
+          <path
+            d="M112 132 C 140 132 162 142 168 152 C 156 160 136 162 112 162 C 88 162 68 160 56 152 C 62 142 84 132 112 132 Z"
+            fill="#F1FAF5"
+          />
 
           <path
-            d="M110 42 C 107 32 109 24 113 16"
+            d="M150 62 C 148 50 150 40 156 32"
             fill="none"
             stroke="#7FCBAA"
             stroke-width="3"
             stroke-linecap="round"
           />
-          <path d="M112 24 C 100 18 94 24 96 30 C 103 33 110 30 112 24 Z" fill="#8FD8B8" />
-          <path d="M113 20 C 124 12 131 18 129 25 C 122 29 115 26 113 20 Z" fill="#A9E3C9" />
+          <path d="M155 40 C 143 34 137 40 139 46 C 146 49 153 46 155 40 Z" fill="#8FD8B8" />
+          <path d="M156 36 C 167 28 174 34 172 41 C 165 45 158 42 156 36 Z" fill="#A9E3C9" />
+
+          <g stroke="#DCEFE6" stroke-width="2" fill="none" stroke-linecap="round">
+            <path d="M92 88 Q104 96 92 104" />
+            <path d="M78 104 Q90 112 78 120" />
+            <path d="M94 120 Q106 128 94 136" />
+          </g>
+
+          <g class="paw">
+            <path
+              d="M126 118 C 138 112 152 116 154 126 C 146 134 132 132 126 118 Z"
+              fill="#E8F7F0"
+              stroke="#CBEADE"
+              stroke-width="1.6"
+              stroke-linejoin="round"
+            />
+          </g>
 
           <g class="eye-open">
-            <ellipse cx="88" cy="106" rx="6" ry="8.4" fill="#2E5A47" />
-            <circle cx="90" cy="102.6" r="2.1" fill="#FFFFFF" />
-            <ellipse cx="132" cy="106" rx="6" ry="8.4" fill="#2E5A47" />
-            <circle cx="134" cy="102.6" r="2.1" fill="#FFFFFF" />
+            <ellipse cx="140" cy="98" rx="8.4" ry="10.4" fill="#2E5A47" />
+            <circle cx="143" cy="93.6" r="2.8" fill="#FFFFFF" />
+            <ellipse cx="168" cy="98" rx="8.4" ry="10.4" fill="#2E5A47" />
+            <circle cx="171" cy="93.6" r="2.8" fill="#FFFFFF" />
           </g>
 
           <g class="eye-happy">
             <path
-              d="M80 107 Q88 98 96 107"
+              d="M131 99 Q140 88 149 99"
               fill="none"
               stroke="#2E5A47"
-              stroke-width="3.2"
+              stroke-width="3.4"
               stroke-linecap="round"
             />
             <path
-              d="M124 107 Q132 98 140 107"
+              d="M159 99 Q168 88 177 99"
               fill="none"
               stroke="#2E5A47"
-              stroke-width="3.2"
+              stroke-width="3.4"
               stroke-linecap="round"
             />
           </g>
 
           <g class="eye-sleepy">
             <path
-              d="M80 104 Q88 111 96 104"
+              d="M131 96 Q140 105 149 96"
               fill="none"
               stroke="#2E5A47"
               stroke-width="3"
               stroke-linecap="round"
             />
             <path
-              d="M124 104 Q132 111 140 104"
+              d="M159 96 Q168 105 177 96"
               fill="none"
               stroke="#2E5A47"
               stroke-width="3"
@@ -238,45 +256,32 @@ onBeforeUnmount(() => {
             />
           </g>
 
-          <ellipse cx="66" cy="124" rx="9.5" ry="5.2" fill="#F7BFCB" opacity="0.72" />
-          <ellipse cx="154" cy="124" rx="9.5" ry="5.2" fill="#F7BFCB" opacity="0.72" />
+          <ellipse cx="128" cy="120" rx="9" ry="5" fill="#F7BFCB" opacity="0.7" />
+          <ellipse cx="180" cy="120" rx="9" ry="5" fill="#F7BFCB" opacity="0.7" />
 
-          <path d="M106 117.4 L114 117.4 L110 121.2 Z" fill="#EFA8B8" />
           <path
-            d="M102 124 Q106 129 110 124 Q114 129 118 124"
+            d="M146 124 Q154 132 162 124"
             fill="none"
             stroke="#2E5A47"
             stroke-width="2.4"
             stroke-linecap="round"
             stroke-linejoin="round"
           />
-
-          <g class="paw">
-            <ellipse cx="84" cy="174" rx="16" ry="9.5" fill="#FBF6EC" stroke="#EDE1CE" stroke-width="1.6" />
-            <ellipse cx="84" cy="174.5" rx="6" ry="4" fill="#F7C9D3" opacity="0.75" />
-            <ellipse cx="136" cy="174" rx="16" ry="9.5" fill="#FBF6EC" stroke="#EDE1CE" stroke-width="1.6" />
-            <ellipse cx="136" cy="174.5" rx="6" ry="4" fill="#F7C9D3" opacity="0.75" />
-          </g>
-
-          <g stroke="#E2D5BF" stroke-width="1.6" stroke-linecap="round">
-            <path d="M58 108 L44 104" />
-            <path d="M58 118 L44 122" />
-            <path d="M162 108 L176 104" />
-            <path d="M162 118 L176 122" />
-          </g>
         </g>
 
-        <g class="twinkle" fill="#F7D8A6">
-          <path d="M32 64 l2.4 6.4 6.4 2.4 -6.4 2.4 -2.4 6.4 -2.4 -6.4 -6.4 -2.4 6.4 -2.4 z" />
+        <g class="twinkle" fill="#A9E3C9">
+          <circle cx="196" cy="66" r="4.2" />
+          <circle cx="204" cy="48" r="2.8" />
+          <circle cx="190" cy="44" r="2" />
         </g>
-        <g class="twinkle twinkle--late" fill="#A9E3C9">
-          <path d="M188 148 l2 5.2 5.2 2 -5.2 2 -2 5.2 -2 -5.2 -5.2 -2 5.2 -2 z" />
+        <g class="twinkle twinkle--late" fill="#F7D8A6">
+          <path d="M36 40 l2.2 5.8 5.8 2.2 -5.8 2.2 -2.2 5.8 -2.2 -5.8 -5.8 -2.2 5.8 -2.2 z" />
         </g>
 
         <g class="pet-zzz" fill="#7FB6A0">
-          <text x="168" y="74" font-size="12" font-weight="700">z</text>
-          <text x="178" y="62" font-size="9" font-weight="700">z</text>
-          <text x="186" y="52" font-size="7" font-weight="700">z</text>
+          <text x="186" y="90" font-size="12" font-weight="700">z</text>
+          <text x="194" y="76" font-size="9" font-weight="700">z</text>
+          <text x="200" y="64" font-size="7" font-weight="700">z</text>
         </g>
       </svg>
 
