@@ -6,6 +6,7 @@ import type {
   HistoryRow,
   HistoryView,
   PauseInterval,
+  PetStats,
   SaveSettingsPayload,
   SaveSettingsResult,
   Settings,
@@ -167,6 +168,34 @@ export class AppService {
 
   markReminder(dateKey: string, at: number): void {
     this.store.saveReminder(dateKey, at)
+  }
+
+  /** 摸鱼小宠物的今日/累计点击次数，按本地日期归属 */
+  petStats(now: number): PetStats {
+    const dateKey = toDateKey(new Date(now))
+    return {
+      dateKey,
+      today: this.db.petDaily?.[dateKey] ?? 0,
+      total: this.db.petTotal ?? 0
+    }
+  }
+
+  /** 点一下加 1，立即落盘，跨重启保留 */
+  tapPet(now: number): PetStats {
+    const dateKey = toDateKey(new Date(now))
+    const daily = { ...(this.db.petDaily ?? {}) }
+    const next = Math.max(0, Math.round(daily[dateKey] ?? 0)) + 1
+    daily[dateKey] = next
+    this.store.savePetCounts(daily, (this.db.petTotal ?? 0) + 1)
+    return { dateKey, today: next, total: this.db.petTotal ?? 0 }
+  }
+
+  get petBounds(): { x: number; y: number } | null {
+    return this.db.petBounds ?? null
+  }
+
+  savePetBounds(bounds: { x: number; y: number }): void {
+    this.store.savePetBounds(bounds)
   }
 
   effectiveSettingsFor(dateKey: string): Settings {

@@ -110,6 +110,19 @@ export interface AppDb {
   reminders: Record<string, number>
   records: DayRecord[]
   floatBounds?: { x: number; y: number } | null
+  /** 摸鱼小宠物：按日期统计的点击次数 */
+  petDaily?: Record<string, number>
+  /** 摸鱼小宠物：累计点击次数 */
+  petTotal?: number
+  petBounds?: { x: number; y: number } | null
+}
+
+export interface PetStats {
+  /** 归属日期（本地 YYYY-MM-DD） */
+  dateKey: string
+  today: number
+  total: number
+  visible?: boolean
 }
 
 export type WorkStatus =

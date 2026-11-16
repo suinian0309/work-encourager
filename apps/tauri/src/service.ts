@@ -7,6 +7,7 @@ import type {
   HistoryRow,
   HistoryView,
   PauseInterval,
+  PetStats,
   SaveSettingsPayload,
   SaveSettingsResult,
   Settings,
@@ -211,5 +212,34 @@ export class LocalService {
 
   private settingsFor(key: string): Settings {
     return settingsForDate(this.db.settingsTimeline, key)
+  }
+
+  get petBounds(): { x: number; y: number } | null {
+    return this.db.petBounds ?? null
+  }
+
+  petStats(now: number): PetStats {
+    const dateKey = toDateKey(new Date(now))
+    const daily = this.db.petDaily ?? {}
+    return { dateKey, today: daily[dateKey] ?? 0, total: this.db.petTotal ?? 0 }
+  }
+
+  async tapPet(now: number): Promise<PetStats> {
+    const dateKey = toDateKey(new Date(now))
+    const daily = { ...(this.db.petDaily ?? {}) }
+    daily[dateKey] = (daily[dateKey] ?? 0) + 1
+    const keys = Object.keys(daily).sort()
+    if (keys.length > 400) {
+      for (const key of keys.slice(0, keys.length - 400)) delete daily[key]
+    }
+    this.db.petDaily = daily
+    this.db.petTotal = (this.db.petTotal ?? 0) + 1
+    await this.persist()
+    return this.petStats(now)
+  }
+
+  async savePetBounds(bounds: { x: number; y: number }): Promise<void> {
+    this.db.petBounds = { x: Math.round(bounds.x), y: Math.round(bounds.y) }
+    await this.persist()
   }
 }

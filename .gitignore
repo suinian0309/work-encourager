@@ -17,6 +17,7 @@ apps/slint/target/
 .wv2*/
 .tauri-data/
 .e2e-*/
+.probe/
 *.log
 *.tmp
 

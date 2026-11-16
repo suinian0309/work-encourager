@@ -29,8 +29,26 @@ export function createInitialDb(now: number): AppDb {
     pauses: [],
     resets: {},
     reminders: {},
-    records: []
+    records: [],
+    floatBounds: null,
+    petDaily: {},
+    petTotal: 0,
+    petBounds: null
   }
+}
+
+function normalizePetDaily(input: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!input || typeof input !== 'object') return out
+  const entries = Object.entries(input as Record<string, unknown>)
+    .filter(
+      ([key, value]) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(key) && Number.isFinite(Number(value)) && Number(value) > 0
+    )
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(-400)
+  for (const [key, value] of entries) out[key] = Math.floor(Number(value))
+  return out
 }
 
 export function normalizeDb(raw: Partial<AppDb>, now: number): AppDb {
@@ -108,6 +126,14 @@ export function normalizeDb(raw: Partial<AppDb>, now: number): AppDb {
       Number.isFinite(raw.floatBounds.x) &&
       Number.isFinite(raw.floatBounds.y)
         ? { x: Number(raw.floatBounds.x), y: Number(raw.floatBounds.y) }
+        : null,
+    petDaily: normalizePetDaily(raw.petDaily),
+    petTotal: Math.max(0, Math.floor(Number(raw.petTotal) || 0)),
+    petBounds:
+      raw.petBounds &&
+      Number.isFinite(raw.petBounds.x) &&
+      Number.isFinite(raw.petBounds.y)
+        ? { x: Number(raw.petBounds.x), y: Number(raw.petBounds.y) }
         : null
   }
 }

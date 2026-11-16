@@ -21,6 +21,7 @@ withDefaults(
       | 'pin'
       | 'float'
       | 'expand'
+      | 'fish'
     size?: number
   }>(),
   { size: 16 }
@@ -110,6 +111,12 @@ withDefaults(
     </template>
     <template v-else-if="name === 'expand'">
       <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />
+    </template>
+    <template v-else-if="name === 'fish'">
+      <path d="M4 12c2.4-3.8 5.6-5.7 9.2-5.7 2.8 0 5.2 1.9 6.6 5.7-1.4 3.8-3.8 5.7-6.6 5.7C9.6 17.7 6.4 15.8 4 12Z" />
+      <path d="M4 12c-1.4-1.6-2.3-3-2.5-4.6 1.9.5 3.2 1.6 4 3.4" />
+      <path d="M4 12c-1.4 1.6-2.3 3-2.5 4.6 1.9-.5 3.2-1.6 4-3.4" />
+      <circle cx="15.4" cy="10.8" r="0.9" fill="currentColor" stroke="none" />
     </template>
   </svg>
 </template>

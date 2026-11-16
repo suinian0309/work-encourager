@@ -20,6 +20,8 @@ let storeHandle: StoreHandle | null = null
 let mainWindow: BrowserWindow | null = null
 let floatWindow: BrowserWindow | null = null
 let floatMoveTimer: NodeJS.Timeout | null = null
+let petWindow: BrowserWindow | null = null
+let petMoveTimer: NodeJS.Timeout | null = null
 let tray: TrayController | null = null
 let reminders: ReminderService | null = null
 let isQuitting = false
@@ -59,18 +61,22 @@ function floatVisible(): boolean {
   return !!floatWindow && floatWindow.isVisible()
 }
 
+function petVisible(): boolean {
+  return !!petWindow && petWindow.isVisible()
+}
+
 function updateTray(): void {
   if (!service || !tray) return
   const state = service.state(Date.now())
   const tooltip = state.privacyMode
     ? '上班鼓励器 · 计时进行中'
     : `上班鼓励器 · 今日已赚 ¥${state.earnTodayText}`
-  tray.update(state.timerOn, tooltip, floatVisible())
+  tray.update(state.timerOn, tooltip, floatVisible(), petVisible(), service.petStats(Date.now()).today)
 }
 
 function defaultFloatBounds(): { x: number; y: number } {
   const area = screen.getPrimaryDisplay().workArea
-  return { x: area.x + area.width - 280, y: area.y + area.height - 172 }
+  return { x: area.x + area.width - 292, y: area.y + area.height - 184 }
 }
 
 function createFloatWindow(): BrowserWindow {
@@ -81,16 +87,16 @@ function createFloatWindow(): BrowserWindow {
   const onScreen = screen.getAllDisplays().some((display) => {
     const area = display.workArea
     return (
-      position.x + 260 > area.x + 20 &&
+      position.x + 272 > area.x + 20 &&
       position.x < area.x + area.width - 20 &&
-      position.y + 152 > area.y + 20 &&
+      position.y + 164 > area.y + 20 &&
       position.y < area.y + area.height - 20
     )
   })
   const initial = onScreen ? position : fallback
   const window = new BrowserWindow({
-    width: 260,
-    height: 152,
+    width: 272,
+    height: 164,
     x: initial.x,
     y: initial.y,
     show: false,
@@ -172,6 +178,104 @@ function expandFloat(): void {
   updateTray()
 }
 
+const PET_WIDTH = 256
+const PET_HEIGHT = 280
+
+function defaultPetBounds(): { x: number; y: number } {
+  const area = screen.getPrimaryDisplay().workArea
+  return {
+    x: area.x + area.width - PET_WIDTH - 280,
+    y: area.y + area.height - PET_HEIGHT - 24
+  }
+}
+
+function createPetWindow(): BrowserWindow {
+  if (petWindow) return petWindow
+  const fallback = defaultPetBounds()
+  const saved = service?.petBounds
+  const position = saved ?? fallback
+  const onScreen = screen.getAllDisplays().some((display) => {
+    const area = display.workArea
+    return (
+      position.x + PET_WIDTH > area.x + 40 &&
+      position.x < area.x + area.width - 40 &&
+      position.y + PET_HEIGHT > area.y + 40 &&
+      position.y < area.y + area.height - 40
+    )
+  })
+  const initial = onScreen ? position : fallback
+  const window = new BrowserWindow({
+    width: PET_WIDTH,
+    height: PET_HEIGHT,
+    x: initial.x,
+    y: initial.y,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    title: '上班鼓励器 · 摸鱼小宠物',
+    icon: join(resourcesDir, 'icon.png'),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      spellcheck: false
+    }
+  })
+  window.setSkipTaskbar(true)
+  window.setAlwaysOnTop(true, 'floating')
+
+  window.on('moved', () => {
+    if (petMoveTimer) clearTimeout(petMoveTimer)
+    petMoveTimer = setTimeout(() => {
+      if (!petWindow || !service) return
+      const bounds = petWindow.getBounds()
+      try {
+        service.savePetBounds({ x: bounds.x, y: bounds.y })
+      } catch (error) {
+        reportError(error, '保存小宠物位置失败')
+      }
+    }, 400)
+  })
+  window.on('closed', () => {
+    petWindow = null
+    updateTray()
+  })
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    void window.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/pet.html`)
+  } else {
+    void window.loadFile(join(__dirname, '../renderer/pet.html'))
+  }
+  petWindow = window
+  return window
+}
+
+function showPet(): boolean {
+  createPetWindow().showInactive()
+  updateTray()
+  return true
+}
+
+function hidePet(): boolean {
+  petWindow?.hide()
+  updateTray()
+  return false
+}
+
+function togglePet(): boolean {
+  if (petVisible()) return hidePet()
+  return showPet()
+}
+
 function requestClose(): void {
   if (!service) {
     isQuitting = true
@@ -191,6 +295,7 @@ function createTray(): void {
     iconPath: join(resourcesDir, 'tray.png'),
     onShow: () => showWindow(),
     onToggleFloat: () => toggleFloat(),
+    onTogglePet: () => togglePet(),
     onToggleTimer: () => {
       if (!service) return
       try {
@@ -406,6 +511,24 @@ function registerIpc(): void {
     expandFloat()
     return true
   })
+
+  ipcMain.handle('pet:get', () => {
+    const stats = getService().petStats(Date.now())
+    return { ...stats, visible: petVisible() }
+  })
+
+  ipcMain.handle('pet:tap', () => {
+    const stats = getService().tapPet(Date.now())
+    mainWindow?.webContents.send('pet:tapped', stats)
+    updateTray()
+    return { ...stats, visible: petVisible() }
+  })
+
+  ipcMain.handle('pet:show', () => showPet())
+
+  ipcMain.handle('pet:hide', () => hidePet())
+
+  ipcMain.handle('pet:toggle', () => togglePet())
 }
 
 function bootstrap(): void {
@@ -426,6 +549,7 @@ function bootstrap(): void {
     if (ticking) clearInterval(ticking)
     tray?.destroy()
     floatWindow?.destroy()
+    petWindow?.destroy()
   })
 
   app.on('window-all-closed', () => {
@@ -434,7 +558,7 @@ function bootstrap(): void {
 
   void app.whenReady().then(() => {
     try {
-      storeHandle = openStore()
+      storeHandle = openStore(process.env['WORK_ENC_DATA_DIR'] || undefined)
       service = new AppService(storeHandle, { now: () => Date.now(), version: app.getVersion() })
       service.settle(Date.now())
     } catch (error) {

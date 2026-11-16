@@ -43,7 +43,10 @@ export function createInitialDb(now: number): AppDb {
     pauses: [],
     resets: {},
     reminders: {},
-    records: []
+    records: [],
+    petDaily: {},
+    petTotal: 0,
+    petBounds: null
   }
 }
 
@@ -127,8 +130,27 @@ export function normalizeDb(raw: Partial<AppDb>, now: number): AppDb {
       Number.isFinite(raw.floatBounds.x) &&
       Number.isFinite(raw.floatBounds.y)
         ? { x: Number(raw.floatBounds.x), y: Number(raw.floatBounds.y) }
+        : null,
+    petDaily: normalizePetDaily(raw.petDaily),
+    petTotal: Number.isFinite(Number(raw.petTotal)) ? Math.max(0, Math.round(Number(raw.petTotal))) : 0,
+    petBounds:
+      raw.petBounds &&
+      Number.isFinite(raw.petBounds.x) &&
+      Number.isFinite(raw.petBounds.y)
+        ? { x: Number(raw.petBounds.x), y: Number(raw.petBounds.y) }
         : null
   }
+}
+
+/** 摸鱼计数按日期保存，丢弃非法数值与过旧日期（保留最近 400 天） */
+function normalizePetDaily(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {}
+  const entries = Object.entries(raw as Record<string, unknown>)
+    .filter(([key, value]) => /^\d{4}-\d{2}-\d{2}$/.test(key) && Number.isFinite(Number(value)))
+    .map(([key, value]) => [key, Math.max(0, Math.round(Number(value)))] as const)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(-400)
+  return Object.fromEntries(entries)
 }
 
 export interface StoreHandle {
@@ -142,6 +164,8 @@ export interface StoreHandle {
   saveTimeline(timeline: SettingsEntry[]): void
   saveReminder(dateKey: string, at: number): void
   saveFloatBounds(bounds: { x: number; y: number }): void
+  savePetCounts(daily: Record<string, number>, total: number): void
+  savePetBounds(bounds: { x: number; y: number }): void
 }
 
 export function openStore(cwd?: string): StoreHandle {
@@ -218,6 +242,16 @@ export function openStore(cwd?: string): StoreHandle {
     saveFloatBounds(bounds) {
       db.floatBounds = { x: Math.round(bounds.x), y: Math.round(bounds.y) }
       persist('floatBounds', db.floatBounds)
+    },
+    savePetCounts(daily, total) {
+      db.petDaily = normalizePetDaily(daily)
+      db.petTotal = Math.max(0, Math.round(total))
+      persist('petDaily', db.petDaily)
+      persist('petTotal', db.petTotal)
+    },
+    savePetBounds(bounds) {
+      db.petBounds = { x: Math.round(bounds.x), y: Math.round(bounds.y) }
+      persist('petBounds', db.petBounds)
     }
   }
 }

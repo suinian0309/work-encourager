@@ -77,6 +77,18 @@ body.float-body {
 
 body.float-body #float {
   height: 100%;
+  /* 给卡片外的柔和阴影留出空间，避免阴影被窗口边缘切断 */
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+body.pet-body {
+  background: transparent;
+  overflow: hidden;
+}
+
+body.pet-body #pet {
+  height: 100%;
 }
 
 button,

@@ -122,6 +122,24 @@ fn float_is_visible(app: &AppHandle) -> bool {
     .unwrap_or(false)
 }
 
+fn pet_is_visible(app: &AppHandle) -> bool {
+  app
+    .get_webview_window("pet")
+    .and_then(|window| window.is_visible().ok())
+    .unwrap_or(false)
+}
+
+fn pet_today(app: &AppHandle) -> i64 {
+  let key = Local::now().format("%Y-%m-%d").to_string();
+  read_db(app)
+    .and_then(|db| {
+      db.get("petDaily")
+        .and_then(|daily| daily.get(&key))
+        .and_then(Value::as_i64)
+    })
+    .unwrap_or(0)
+}
+
 fn refresh_tray(app: &AppHandle) {
   let Some(tray) = app.tray_by_id("main") else {
     return;
@@ -134,7 +152,7 @@ fn refresh_tray(app: &AppHandle) {
         .unwrap_or(true)
     })
     .unwrap_or(true);
-  if let Ok(menu) = build_menu(app, timer_on, float_is_visible(app)) {
+  if let Ok(menu) = build_menu(app, timer_on, float_is_visible(app), pet_is_visible(app), pet_today(app)) {
     let _ = tray.set_menu(Some(menu));
   }
 }
@@ -188,10 +206,39 @@ fn toggle_float(app: &AppHandle) {
   }
 }
 
+fn show_pet(app: &AppHandle) -> Result<(), String> {
+  let pet = app
+    .get_webview_window("pet")
+    .ok_or_else(|| "宠物窗口尚未创建".to_string())?;
+  let _ = pet.set_skip_taskbar(true);
+  pet.show().map_err(|error| format!("显示宠物窗口失败：{error}"))?;
+  set_taskbar_hidden(&pet);
+  let _ = pet.set_always_on_top(true);
+  refresh_tray(app);
+  Ok(())
+}
+
+fn hide_pet(app: &AppHandle) {
+  if let Some(pet) = app.get_webview_window("pet") {
+    let _ = pet.hide();
+  }
+  refresh_tray(app);
+}
+
+fn toggle_pet(app: &AppHandle) {
+  if pet_is_visible(app) {
+    hide_pet(app);
+  } else if let Err(error) = show_pet(app) {
+    eprintln!("show pet failed: {error}");
+  }
+}
+
 fn build_menu(
   app: &AppHandle,
   timer_on: bool,
   float_visible: bool,
+  pet_visible: bool,
+  pet_count: i64,
 ) -> tauri::Result<Menu<tauri::Wry>> {
   let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
   let float = MenuItem::with_id(
@@ -201,6 +248,19 @@ fn build_menu(
       "隐藏桌面浮窗"
     } else {
       "打开桌面浮窗"
+    },
+    true,
+    None::<&str>,
+  )?;
+  let pet = MenuItem::with_id(
+    app,
+    "pet",
+    if pet_visible {
+      "收起摸鱼小宠物".to_string()
+    } else if pet_count > 0 {
+      format!("摸鱼小宠物（今日 {pet_count} 次）")
+    } else {
+      "摸鱼小宠物".to_string()
     },
     true,
     None::<&str>,
@@ -218,11 +278,11 @@ fn build_menu(
   )?;
   let settings = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
   let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-  Menu::with_items(app, &[&show, &float, &toggle, &settings, &quit])
+  Menu::with_items(app, &[&show, &float, &pet, &toggle, &settings, &quit])
 }
 
 fn create_tray(app: &AppHandle) -> tauri::Result<()> {
-  let menu = build_menu(app, true, false)?;
+  let menu = build_menu(app, true, false, false, pet_today(app))?;
   let Some(icon) = app.default_window_icon().cloned() else {
     return Ok(());
   };
@@ -234,6 +294,7 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
     .on_menu_event(|app, event| match event.id.as_ref() {
       "show" => show_main(app),
       "float" => toggle_float(app),
+      "pet" => toggle_pet(app),
       "toggle" => {
         show_main(app);
         let _ = app.emit("tray-toggle-timer", ());
@@ -271,7 +332,11 @@ fn load_db(app: AppHandle) -> Result<Option<String>, String> {
 #[tauri::command]
 fn save_db(app: AppHandle, json: String) -> Result<(), String> {
   serde_json::from_str::<Value>(&json).map_err(|error| format!("数据不是有效 JSON：{error}"))?;
-  let dir = resolve_data_dir(&app)?;
+  write_db_text(&app, &json)
+}
+
+fn write_db_text(app: &AppHandle, json: &str) -> Result<(), String> {
+  let dir = resolve_data_dir(app)?;
   fs::create_dir_all(&dir).map_err(|error| format!("创建数据目录失败：{error}"))?;
   let path = db_path(&dir);
   let temp = path.with_extension("json.tmp");
@@ -359,10 +424,52 @@ fn update_tray(app: AppHandle, timer_on: bool, tooltip: String) -> Result<(), St
     return Ok(());
   };
   let _ = tray.set_tooltip(Some(tooltip));
-  let menu =
-    build_menu(&app, timer_on, float_is_visible(&app)).map_err(|error| error.to_string())?;
+  let menu = build_menu(
+    &app,
+    timer_on,
+    float_is_visible(&app),
+    pet_is_visible(&app),
+    pet_today(&app),
+  )
+  .map_err(|error| error.to_string())?;
   tray.set_menu(Some(menu)).map_err(|error| error.to_string())?;
   Ok(())
+}
+
+#[tauri::command]
+fn show_pet_window(app: AppHandle) -> Result<(), String> {
+  show_pet(&app)
+}
+
+#[tauri::command]
+fn hide_pet_window(app: AppHandle) {
+  hide_pet(&app);
+}
+
+#[tauri::command]
+fn toggle_pet_window(app: AppHandle) -> Result<bool, String> {
+  if pet_is_visible(&app) {
+    hide_pet(&app);
+    Ok(false)
+  } else {
+    show_pet(&app)?;
+    Ok(true)
+  }
+}
+
+#[tauri::command]
+fn save_pet_bounds(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
+  let mut db = read_db(&app).unwrap_or_else(|| Value::Object(Default::default()));
+  if !db.is_object() {
+    db = Value::Object(Default::default());
+  }
+  if let Some(object) = db.as_object_mut() {
+    object.insert(
+      "petBounds".to_string(),
+      serde_json::json!({ "x": x.round() as i64, "y": y.round() as i64 }),
+    );
+  }
+  write_db_text(&app, &db.to_string())
 }
 
 #[tauri::command]
@@ -504,6 +611,30 @@ fn spawn_reminders(app: AppHandle) {
   });
 }
 
+fn persist_pet_position(window: &tauri::Window) {
+  use std::sync::atomic::{AtomicU64, Ordering};
+  static LAST_SAVE_MS: AtomicU64 = AtomicU64::new(0);
+
+  let now = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|elapsed| elapsed.as_millis() as u64)
+    .unwrap_or(0);
+  if now.saturating_sub(LAST_SAVE_MS.load(Ordering::Relaxed)) < 400 {
+    return;
+  }
+  LAST_SAVE_MS.store(now, Ordering::Relaxed);
+
+  let Ok(position) = window.outer_position() else {
+    return;
+  };
+  let scale = window.scale_factor().unwrap_or(1.0);
+  let _ = save_pet_bounds(
+    window.app_handle().clone(),
+    position.x as f64 / scale,
+    position.y as f64 / scale,
+  );
+}
+
 pub fn run() {
   let mut context = tauri::generate_context!();
   if let Ok(dir) = std::env::var("WORK_ENC_DATA_DIR") {
@@ -528,7 +659,11 @@ pub fn run() {
       update_tray,
       show_float_window,
       hide_float_window,
-      expand_float_window
+      expand_float_window,
+      show_pet_window,
+      hide_pet_window,
+      toggle_pet_window,
+      save_pet_bounds
     ])
     .setup(|app| {
       let data_dir = if let Some(dir) = std::env::var_os("WORK_ENC_DATA_DIR") {
@@ -565,6 +700,29 @@ pub fn run() {
         let _ = float.set_skip_taskbar(true);
         set_taskbar_hidden(&float);
       }
+      if let Some(pet) = app.get_webview_window("pet") {
+        let saved = read_db(app.handle())
+          .and_then(|db| db.get("petBounds").cloned())
+          .and_then(|bounds| {
+            let x = bounds.get("x")?.as_f64()?;
+            let y = bounds.get("y")?.as_f64()?;
+            Some((x, y))
+          });
+        if let Some((x, y)) = saved {
+          let _ = pet.set_position(tauri::LogicalPosition::new(x, y));
+        } else if let Ok(Some(monitor)) = pet.primary_monitor() {
+          let scale = monitor.scale_factor();
+          let size = monitor.size();
+          let position = monitor.position();
+          let width = size.width as f64 / scale;
+          let height = size.height as f64 / scale;
+          let x = position.x as f64 / scale + width - 268.0;
+          let y = position.y as f64 / scale + height - 460.0;
+          let _ = pet.set_position(tauri::LogicalPosition::new(x, y));
+        }
+        let _ = pet.set_skip_taskbar(true);
+        set_taskbar_hidden(&pet);
+      }
       spawn_reminders(app.handle().clone());
       Ok(())
     })
@@ -574,6 +732,18 @@ pub fn run() {
           api.prevent_close();
           let _ = window.hide();
           refresh_tray(window.app_handle());
+        }
+        return;
+      }
+      if window.label() == "pet" {
+        match event {
+          WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
+            let _ = window.hide();
+            refresh_tray(window.app_handle());
+          }
+          WindowEvent::Moved(_) => persist_pet_position(window),
+          _ => {}
         }
         return;
       }

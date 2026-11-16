@@ -17,7 +17,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: resolve(__dirname, 'index.html'),
-        float: resolve(__dirname, 'float.html')
+        float: resolve(__dirname, 'float.html'),
+        pet: resolve(__dirname, 'pet.html')
       }
     }
   },

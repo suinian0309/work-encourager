@@ -114,6 +114,14 @@ async function openFloat(): Promise<void> {
   }
 }
 
+async function togglePet(): Promise<void> {
+  try {
+    await window.workEncourager.togglePet()
+  } catch (error) {
+    showToast(`无法打开摸鱼小宠物：${(error as Error).message}`)
+  }
+}
+
 async function handleSaved(result: SaveSettingsResult): Promise<void> {
   view.value = 'main'
   try {
@@ -221,6 +229,7 @@ onBeforeUnmount(() => {
         @minimize="minimizeWindow"
         @close="closeWindow"
         @float="openFloat"
+    @pet="togglePet"
       />
       <SettingsView
         v-else-if="view === 'settings' && bootstrapped"

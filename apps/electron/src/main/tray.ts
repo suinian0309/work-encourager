@@ -5,6 +5,7 @@ export interface TrayOptions {
   onShow: () => void
   onToggleTimer: () => void
   onToggleFloat: () => void
+  onTogglePet: () => void
   onSettings: () => void
   onQuit: () => void
 }
@@ -32,7 +33,13 @@ export class TrayController {
     this.update(timerOn, tooltip, false)
   }
 
-  update(timerOn: boolean, tooltip: string, floatVisible = false): void {
+  update(
+    timerOn: boolean,
+    tooltip: string,
+    floatVisible = false,
+    petVisible = false,
+    petToday = 0
+  ): void {
     if (!this.tray) return
     this.tray.setToolTip(tooltip)
     const menu = Menu.buildFromTemplate([
@@ -43,6 +50,14 @@ export class TrayController {
       {
         label: floatVisible ? '隐藏桌面浮窗' : '打开桌面浮窗',
         click: () => this.options.onToggleFloat()
+      },
+      {
+        label: petVisible
+          ? '收起摸鱼小宠物'
+          : petToday > 0
+            ? `摸鱼小宠物（今日 ${petToday} 次）`
+            : '摸鱼小宠物',
+        click: () => this.options.onTogglePet()
       },
       { type: 'separator' },
       {

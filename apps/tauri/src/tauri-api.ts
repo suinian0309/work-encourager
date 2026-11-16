@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { AppState, BootstrapPayload, HistoryView, SaveSettingsPayload, SaveSettingsResult, Settings } from '@shared/types'
+import type { AppState, BootstrapPayload, HistoryView, PetStats, SaveSettingsPayload, SaveSettingsResult, Settings } from '@shared/types'
 import type { WorkEncouragerApi } from '@shared/api'
 import { LocalService } from './service'
 import { parseDb } from './db'
@@ -17,6 +17,7 @@ export class TauriApi implements WorkEncouragerApi {
   private readonly timerListeners = new Set<(state: AppState) => void>()
   private readonly settingsListeners = new Set<(settings: Settings) => void>()
   private readonly historyListeners = new Set<() => void>()
+  private readonly petListeners = new Set<(stats: PetStats) => void>()
   private lastSettleAt = 0
 
   constructor(service: LocalService) {
@@ -54,6 +55,36 @@ export class TauriApi implements WorkEncouragerApi {
   async expandFloat(): Promise<boolean> {
     await invoke('expand_float_window')
     return true
+  }
+
+  async getPet(): Promise<PetStats> {
+    return this.service.petStats(Date.now())
+  }
+
+  async tapPet(): Promise<PetStats> {
+    const stats = await this.service.tapPet(Date.now())
+    this.petListeners.forEach((callback) => callback(stats))
+    await this.syncTray()
+    return stats
+  }
+
+  async showPet(): Promise<boolean> {
+    await invoke('show_pet_window')
+    return true
+  }
+
+  async hidePet(): Promise<boolean> {
+    await invoke('hide_pet_window')
+    return true
+  }
+
+  async togglePet(): Promise<boolean> {
+    return invoke<boolean>('toggle_pet_window')
+  }
+
+  onPetTapped(callback: (stats: PetStats) => void): () => void {
+    this.petListeners.add(callback)
+    return () => this.petListeners.delete(callback)
   }
 
   private async maybeSettle(now: number): Promise<void> {

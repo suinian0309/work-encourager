@@ -44,10 +44,16 @@ function brokenApi(message: string): WorkEncouragerApi {
     showFloat: fail,
     hideFloat: fail,
     expandFloat: fail,
+    getPet: fail,
+    tapPet: fail,
+    showPet: fail,
+    hidePet: fail,
+    togglePet: fail,
     onNavigate: () => () => undefined,
     onTimerChanged: () => () => undefined,
     onSettingsApplied: () => () => undefined,
-    onHistoryUpdated: () => () => undefined
+    onHistoryUpdated: () => () => undefined,
+    onPetTapped: () => () => undefined
   }
 }
 

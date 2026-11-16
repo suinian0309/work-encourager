@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { WorkEncouragerApi } from '@shared/api'
-import type { AppState, Settings } from '@shared/types'
+import type { AppState, PetStats, Settings } from '@shared/types'
 
 const api: WorkEncouragerApi = {
   bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
@@ -16,6 +16,16 @@ const api: WorkEncouragerApi = {
   showFloat: () => ipcRenderer.invoke('float:show'),
   hideFloat: () => ipcRenderer.invoke('float:hide'),
   expandFloat: () => ipcRenderer.invoke('float:expand'),
+  getPet: () => ipcRenderer.invoke('pet:get'),
+  tapPet: () => ipcRenderer.invoke('pet:tap'),
+  showPet: () => ipcRenderer.invoke('pet:show'),
+  hidePet: () => ipcRenderer.invoke('pet:hide'),
+  togglePet: () => ipcRenderer.invoke('pet:toggle'),
+  onPetTapped(callback) {
+    const listener = (_event: unknown, stats: PetStats) => callback(stats)
+    ipcRenderer.on('pet:tapped', listener)
+    return () => ipcRenderer.removeListener('pet:tapped', listener)
+  },
   onNavigate(callback) {
     const listener = (_event: unknown, target: 'settings' | 'history' | 'main') => callback(target)
     ipcRenderer.on('navigate', listener)

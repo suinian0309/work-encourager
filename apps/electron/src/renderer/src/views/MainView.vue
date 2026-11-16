@@ -13,6 +13,7 @@ const emit = defineEmits<{
   (e: 'minimize'): void
   (e: 'close'): void
   (e: 'float'): void
+  (e: 'pet'): void
 }>()
 
 const isNumericCountdown = computed(() => /^\d{2}:\d{2}:\d{2}$/.test(props.state?.countdownText ?? ''))
@@ -40,6 +41,9 @@ const footerText = computed(() => {
         <span class="brand-name">上班鼓励器</span>
       </div>
       <div class="title-actions">
+        <button class="icon-btn icon-btn--pet" type="button" title="摸鱼小宠物" @click="emit('pet')">
+          <AppIcon name="fish" />
+        </button>
         <button class="icon-btn" type="button" title="桌面浮窗" @click="emit('float')">
           <AppIcon name="float" />
         </button>

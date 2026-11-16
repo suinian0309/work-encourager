@@ -2,6 +2,7 @@ import type {
   AppState,
   BootstrapPayload,
   HistoryView,
+  PetStats,
   SaveSettingsPayload,
   SaveSettingsResult,
   Settings
@@ -21,6 +22,12 @@ export interface WorkEncouragerApi {
   showFloat(): Promise<boolean>
   hideFloat(): Promise<boolean>
   expandFloat(): Promise<boolean>
+  getPet(): Promise<PetStats>
+  tapPet(): Promise<PetStats>
+  showPet(): Promise<boolean>
+  hidePet(): Promise<boolean>
+  togglePet(): Promise<boolean>
+  onPetTapped(callback: (stats: PetStats) => void): () => void
   onNavigate(callback: (target: 'settings' | 'history' | 'main') => void): () => void
   onTimerChanged(callback: (state: AppState) => void): () => void
   onSettingsApplied(callback: (settings: Settings) => void): () => void

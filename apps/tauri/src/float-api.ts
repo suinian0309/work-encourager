@@ -44,9 +44,24 @@ export function createFloatApi(): WorkEncouragerApi {
       await invoke('expand_float_window')
       return true
     },
+    getPet: async () => {
+      const service = await loadService()
+      return service.petStats(Date.now())
+    },
+    tapPet: fail,
+    showPet: async () => {
+      await invoke('show_pet_window')
+      return true
+    },
+    hidePet: async () => {
+      await invoke('hide_pet_window')
+      return true
+    },
+    togglePet: () => invoke<boolean>('toggle_pet_window'),
     onNavigate: () => () => undefined,
     onTimerChanged: () => () => undefined,
     onSettingsApplied: () => () => undefined,
-    onHistoryUpdated: () => () => undefined
+    onHistoryUpdated: () => () => undefined,
+    onPetTapped: () => () => undefined
   }
 }
