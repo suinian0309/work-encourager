@@ -192,6 +192,36 @@ try {
   const env2 = JSON.parse(await pet.evaluate('(async () => JSON.stringify(await window.workEncourager.getPetEnv()))()'))
   check('movePet 能移动窗口', env2.x !== env.x || env2.y !== env.y, `${env.x},${env.y} → ${env2.x},${env2.y}`)
 
+  // 拖拽：pointerdown → 多次 pointermove（screen 坐标位移）→ pointerup，窗口应跟着走
+  await pet.evaluate(`(() => {
+    const el = document.querySelector('.pet-stage canvas')
+    const send = (type, x, y) => el.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, pointerId: 7, clientX: x, clientY: y, screenX: x + 500, screenY: y + 300
+    }))
+    send('pointerdown', 140, 120)
+    return true
+  })()`)
+  for (let i = 1; i <= 6; i += 1) {
+    await pet.evaluate(`(() => {
+      const el = document.querySelector('.pet-stage canvas')
+      el.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true, pointerId: 7, clientX: 140, clientY: 120, screenX: ${500 + i * 20}, screenY: ${300 + i * 10}
+      }))
+      return true
+    })()`)
+    await sleep(60)
+  }
+  await pet.evaluate(`(() => {
+    const el = document.querySelector('.pet-stage canvas')
+    el.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, pointerId: 7, clientX: 140, clientY: 120, screenX: 620, screenY: 360
+    }))
+    return true
+  })()`)
+  await sleep(1500)
+  const env3 = JSON.parse(await pet.evaluate('(async () => JSON.stringify(await window.workEncourager.getPetEnv()))()'))
+  check('拖拽后窗口跟随移动', Math.abs(env3.x - env2.x) > 40, `${env2.x} → ${env3.x}`)
+
   await screenshot(pet, join(shotDir, 'tauri-pet-live2d.png'))
 
   const errors = await pet.evaluate('document.body.innerText.match(/错误|failed|Error/g) ? document.body.innerText.slice(0,200) : ""')
