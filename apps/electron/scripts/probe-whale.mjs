@@ -142,6 +142,22 @@ try {
     return document.querySelector('.pet-pill')?.innerText ?? ''
   })()`)
 
+  result.clamp = await petClient.evaluate(`(async () => {
+    const api = window.workEncourager
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+    await api.movePet(99999, 99999)
+    await wait(150)
+    const far = await api.getPetEnv()
+    await api.movePet(-99999, -99999)
+    await wait(150)
+    const near = await api.getPetEnv()
+    await api.movePet(far.workArea.width - 400, far.workArea.height - 400)
+    return {
+      far: { x: far.x, y: far.y, w: far.width, h: far.height, wa: far.workArea },
+      near: { x: near.x, y: near.y }
+    }
+  })()`)
+
   result.ok = true
 } catch (error) {
   result.error = error instanceof Error ? error.message : String(error)

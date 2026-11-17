@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "上班鼓励器",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "identifier": "com.workencourager.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev:web",
@@ -42,8 +42,8 @@
         "label": "pet",
         "title": "上班鼓励器 · 摸鱼小宠物",
         "url": "pet.html",
-        "width": 300,
-        "height": 380,
+        "width": 210,
+        "height": 266,
         "resizable": false,
         "decorations": false,
         "transparent": true,

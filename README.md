@@ -155,7 +155,7 @@ cargo build --release --manifest-path apps/slint/Cargo.toml
 
 <img src="docs/images/pet-whale.png" width="200" align="right" alt="鲸鱼娘" />
 
-主界面标题栏的那只小鱼会打开一个 300×380 的无边框小窗：里面是一只鲸鱼娘，圆脸、双马尾、背后一条鲸尾，站着轻轻呼吸、眨眼睛、甩尾巴。
+主界面标题栏的那只小鱼会打开一个 210×266 的无边框小窗：里面是一只鲸鱼娘，圆脸、双马尾、背后一条鲸尾，站着轻轻呼吸、眨眼睛、甩尾巴。
 
 - **点一下**：她抖一下，头顶冒「+1」；每 5 次蹦一句摸鱼台词
 - **按住拖动**：整只被拎起来，窗口跟着鼠标走，身体上提倾斜；松手落到地上，速度太快会摔一下
@@ -169,7 +169,7 @@ cargo build --release --manifest-path apps/slint/Cargo.toml
 
 - 运行时三个模块在 `apps/electron/src/renderer/src/whale/`（`rig.js` 11 KB、`body.js` 59 KB、`figure.js` 56 KB），Tauri 版同一份
 - 素材在 `assets/whale/`：`model.json`、`figure.json`、`tex/`、`feat/`、`outfits/`，共 90 个文件 2.73 MB，构建时随安装包一起发行
-- 实测 300×380 窗口下 60 fps（Electron 与 Tauri 都是），需要硬件加速
+- 实测 210×266 窗口下 60 fps（Electron 与 Tauri 都是），需要硬件加速
 - 形象与骨骼动画来自 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（AGPL-3.0），本项目按同一许可证分发，详见 [NOTICE.md](NOTICE.md)
 
 ## 项目结构

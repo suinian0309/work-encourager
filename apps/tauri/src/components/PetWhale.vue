@@ -27,7 +27,7 @@ let dragging = false;
 let dragOrigin = { sx: 0, sy: 0, wx: 0, wy: 0 };
 let env = { x: 0, y: 0 };
 
-const S = 1.22;
+const S = 0.854;
 const FLOOR = 0.92;
 
 function stageBounds() {

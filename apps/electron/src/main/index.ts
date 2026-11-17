@@ -204,8 +204,8 @@ function expandFloat(): void {
 
 /** 鲸鱼娘要留给头顶气泡和脚下阴影，窗口比团子猫略大 */
 const PET_SIZE: Record<PetStyle, { width: number; height: number }> = {
-  mochi: { width: 300, height: 380 },
-  live2d: { width: 300, height: 380 }
+  mochi: { width: 210, height: 266 },
+  live2d: { width: 210, height: 266 }
 }
 
 function petSize(): { width: number; height: number } {
@@ -665,7 +665,13 @@ function registerIpc(): void {
     const window = petWindow
     if (!window) return false
     if (!Number.isFinite(x) || !Number.isFinite(y)) return false
-    window.setPosition(Math.round(x), Math.round(y), false)
+    const bounds = window.getBounds()
+    const { workArea } = screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) })
+    window.setPosition(
+      Math.min(Math.max(Math.round(x), workArea.x), workArea.x + workArea.width - bounds.width),
+      Math.min(Math.max(Math.round(y), workArea.y), workArea.y + workArea.height - bounds.height),
+      false
+    )
     return true
   })
 }

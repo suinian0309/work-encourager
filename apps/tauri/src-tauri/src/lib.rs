@@ -1,4 +1,4 @@
-﻿use std::collections::HashSet;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -514,13 +514,17 @@ fn live2d_base_url() -> String {
   "http://live2d.localhost/".to_string()
 }
 
+/// 宠物窗尺寸（逻辑像素）：鲸鱼娘 300×380 的 70%
+const PET_WIDTH: f64 = 210.0;
+const PET_HEIGHT: f64 = 266.0;
+
 #[tauri::command]
 fn pet_apply_style(app: AppHandle, style: String) -> Result<(), String> {
   let Some(pet) = app.get_webview_window("pet") else {
     return Ok(());
   };
   let _ = style;
-  let (width, height) = (300.0, 380.0);
+  let (width, height) = (PET_WIDTH, PET_HEIGHT);
   pet
     .set_size(tauri::LogicalSize::new(width, height))
     .map_err(|error| format!("调整宠物窗口尺寸失败：{error}"))?;
@@ -563,13 +567,12 @@ fn pet_env(app: AppHandle) -> Result<PetEnv, String> {
     .or_else(|| pet.primary_monitor().ok().flatten());
   let area = monitor
     .map(|monitor| {
-      let position = monitor.position();
-      let size = monitor.size();
+      let work = monitor.work_area();
       PetArea {
-        x: position.x as f64 / scale,
-        y: position.y as f64 / scale,
-        width: size.width as f64 / scale,
-        height: size.height as f64 / scale,
+        x: work.position.x as f64 / scale,
+        y: work.position.y as f64 / scale,
+        width: work.size.width as f64 / scale,
+        height: work.size.height as f64 / scale,
       }
     })
     .unwrap_or(PetArea {
@@ -595,8 +598,31 @@ fn move_pet_window(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
   if !x.is_finite() || !y.is_finite() {
     return Ok(());
   }
+  let scale = pet.scale_factor().unwrap_or(1.0);
+  let size = pet
+    .outer_size()
+    .map_err(|error| format!("读取宠物窗口尺寸失败：{error}"))?;
+  let area = pet
+    .current_monitor()
+    .ok()
+    .flatten()
+    .or_else(|| pet.primary_monitor().ok().flatten())
+    .map(|monitor| {
+      let work = monitor.work_area();
+      (
+        work.position.x as f64,
+        work.position.y as f64,
+        work.size.width as f64,
+        work.size.height as f64,
+      )
+    });
+  let (mut px, mut py) = (x * scale, y * scale);
+  if let Some((ax, ay, aw, ah)) = area {
+    px = px.min(ax + aw - size.width as f64).max(ax);
+    py = py.min(ay + ah - size.height as f64).max(ay);
+  }
   pet
-    .set_position(tauri::LogicalPosition::new(x, y))
+    .set_position(tauri::PhysicalPosition::new(px.round() as i32, py.round() as i32))
     .map_err(|error| format!("移动宠物窗口失败：{error}"))
 }
 
@@ -1010,7 +1036,7 @@ pub fn run() {
         }
         let _ = pet.set_skip_taskbar(true);
         set_taskbar_hidden(&pet);
-        let _ = pet.set_size(tauri::LogicalSize::new(300.0, 380.0));
+        let _ = pet.set_size(tauri::LogicalSize::new(PET_WIDTH, PET_HEIGHT));
       }
       spawn_reminders(app.handle().clone());
       Ok(())

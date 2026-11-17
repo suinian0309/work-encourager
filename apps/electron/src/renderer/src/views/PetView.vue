@@ -37,7 +37,7 @@ function showBubble(text: string): void {
 
 function spawnFloater(): void {
   const id = ++floaterSeed
-  floaters.value = [...floaters.value, { id, left: 108 + Math.round(Math.random() * 70) }]
+  floaters.value = [...floaters.value, { id, left: 76 + Math.round(Math.random() * 48) }]
   window.setTimeout(() => {
     floaters.value = floaters.value.filter((item) => item.id !== id)
   }, 950)
@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 6px 8px 8px;
+  padding: 4px 6px 6px;
   user-select: none;
 }
 
@@ -156,14 +156,14 @@ onBeforeUnmount(() => {
   top: 2px;
   left: 50%;
   z-index: 2;
-  max-width: 210px;
-  padding: 6px 10px;
-  border-radius: 12px;
+  max-width: 152px;
+  padding: 5px 8px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 2px 8px rgba(46, 86, 68, 0.12);
   color: #2e5a47;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 10px;
+  line-height: 1.35;
   text-align: center;
   transform: translate(-50%, -4px) scale(0.94);
   opacity: 0;
@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 34%;
   color: #2e5a47;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 700;
   pointer-events: none;
   animation: rise 0.95s ease-out forwards;
@@ -205,17 +205,17 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: baseline;
   gap: 3px;
-  padding: 4px 12px;
+  padding: 3px 9px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 1px 4px rgba(46, 86, 68, 0.1);
   color: #6b8579;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .pet-pill .num {
   color: #2e5a47;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .pet-pill-total {
