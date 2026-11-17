@@ -1,6 +1,6 @@
 [package]
 name = "work-encourager"
-version = "1.4.1"
+version = "1.4.2"
 description = "上班鼓励器"
 authors = ["Work Encourager"]
 edition = "2021"

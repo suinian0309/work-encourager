@@ -206,10 +206,23 @@ fn toggle_float(app: &AppHandle) {
   }
 }
 
+/// 宠物窗是 WebView2 在启动后异步建好的，头一两秒里 get_webview_window 可能还查不到，
+/// 这里等一会儿再报错，免得开机就点「摸鱼」却什么都不发生。
+fn wait_pet_window(app: &AppHandle) -> Option<WebviewWindow> {
+  let start = std::time::Instant::now();
+  loop {
+    if let Some(window) = app.get_webview_window("pet") {
+      return Some(window);
+    }
+    if start.elapsed().as_millis() > 3000 {
+      return None;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(40));
+  }
+}
+
 fn show_pet(app: &AppHandle) -> Result<(), String> {
-  let pet = app
-    .get_webview_window("pet")
-    .ok_or_else(|| "宠物窗口尚未创建".to_string())?;
+  let pet = wait_pet_window(app).ok_or_else(|| "宠物窗口尚未创建".to_string())?;
   let _ = pet.set_skip_taskbar(true);
   pet.show().map_err(|error| format!("显示宠物窗口失败：{error}"))?;
   set_taskbar_hidden(&pet);
