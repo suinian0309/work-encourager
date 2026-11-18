@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import type { WorkEncouragerApi } from '@shared/api'
 import { LocalService } from './service'
 import { parseDb } from './db'
@@ -77,9 +78,40 @@ export function createPetApi(): WorkEncouragerApi {
         y: number
         width: number
         height: number
+        scale: number
         work_area: { x: number; y: number; width: number; height: number }
       }>('pet_env')
-      return { x: env.x, y: env.y, width: env.width, height: env.height, workArea: env.work_area }
+      return {
+        x: env.x,
+        y: env.y,
+        width: env.width,
+        height: env.height,
+        scale: Number(env.scale) || 0.8,
+        workArea: env.work_area
+      }
+    },
+    getPetScale: async () => {
+      const service = await loadService()
+      return service.petScale
+    },
+    setPetScale: fail,
+    /** 主窗口改完比例后，Rust 会 emit 'pet-scale'，宠物页据此实时重新排版 */
+    onPetScaleChanged: (callback: (scale: number) => void) => {
+      let stop: (() => void) | null = null
+      let disposed = false
+      void listen<number>('pet-scale', (event) => {
+        const value = Number(event.payload)
+        callback(Number.isFinite(value) ? value : 0.8)
+      })
+        .then((unlisten) => {
+          if (disposed) unlisten()
+          else stop = unlisten
+        })
+        .catch(() => undefined)
+      return () => {
+        disposed = true
+        stop?.()
+      }
     },
     movePet: async (x: number, y: number) => {
       try {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { SaveSettingsResult, Settings } from '@shared/types'
 import { defaultSettings, WEEKDAY_SHORT } from '@shared/defaults'
 import { firstIssueMap, validateSettings } from '@shared/validation'
@@ -21,6 +21,33 @@ const emit = defineEmits<{
   (e: 'saved', result: SaveSettingsResult): void
   (e: 'toast', message: string): void
 }>()
+
+/** 宠物大小：滑杆即时生效，不进「保存」流程，也不影响工资与排班的时间线 */
+const petScale = ref(0.8)
+
+async function loadPetScale(): Promise<void> {
+  try {
+    petScale.value = await window.workEncourager.getPetScale()
+  } catch {
+    petScale.value = 0.8
+  }
+}
+
+async function onScaleInput(event: Event): Promise<void> {
+  const value = Number((event.target as HTMLInputElement).value)
+  if (!Number.isFinite(value)) return
+  petScale.value = value / 100
+  try {
+    const next = await window.workEncourager.setPetScale(value / 100)
+    if (Number.isFinite(next)) petScale.value = next
+  } catch {
+    emit('toast', '调整宠物大小失败')
+  }
+}
+
+onMounted(() => {
+  void loadPetScale()
+})
 
 function clone(input: Settings): Settings {
   return JSON.parse(JSON.stringify(input)) as Settings
@@ -687,14 +714,26 @@ watch(
 
     <section class="card settings-card fade-in">
       <div class="section-head">
-<span class="section-title">桌面形象</span>
-        <span class="section-hint">随安装包内置</span>
+        <span class="section-title">桌面形象</span>
+        <span class="section-hint">拖动即时生效</span>
       </div>
       <div class="form-stack">
-        <p class="pet-note">
-          摸鱼小宠物是「鲸鱼娘」：分层图片 + 骨骼网格实时绘制，点一下摸鱼 +1，按住可以拎起来，松手会掉回原地。
-          运行时与素材来自 Coopanion（AGPL-3.0），随安装包一起分发，不需要另外准备模型。
-        </p>
+        <div class="field">
+          <div class="pet-scale-head">
+            <span class="field-label">宠物大小</span>
+            <span class="pet-scale-value">{{ Math.round(petScale * 100) }}%</span>
+          </div>
+          <input
+            class="pet-scale"
+            type="range"
+            min="60"
+            max="140"
+            step="5"
+            :value="Math.round(petScale * 100)"
+            @change="onScaleInput"
+          />
+          <span class="field-hint">默认 80%，改完窗口立刻等比缩放，不用重启。</span>
+        </div>
       </div>
     </section>
 
@@ -1169,11 +1208,23 @@ watch(
 }
 
 /* 桌面形象分组 */
-.pet-note {
-  margin: 0;
-  color: var(--text-muted);
+.pet-scale-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pet-scale-value {
+  color: var(--mint-deep, #2e5a47);
   font-size: 12px;
-  line-height: 1.6;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pet-scale {
+  width: 100%;
+  margin: 6px 0 2px;
+  accent-color: var(--mint, #5cc49a);
 }
 
 .pet-danger {

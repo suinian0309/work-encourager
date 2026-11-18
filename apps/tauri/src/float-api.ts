@@ -72,6 +72,9 @@ export function createFloatApi(): WorkEncouragerApi {
     removeLive2d: fail,
     openLive2dFolder: fail,
     getPetEnv: fail,
-    movePet: fail
+    movePet: fail,
+    getPetScale: fail,
+    setPetScale: fail,
+    onPetScaleChanged: () => () => undefined
   }
 }

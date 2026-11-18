@@ -202,6 +202,15 @@ export class AppService {
   }
 
   /** 桌面形象：团子猫或 Live2D，切换后立即可用（与工资设置无关，不进设置时间线） */
+  get petScale(): number {
+    return this.db.petScale ?? 0.8
+  }
+
+  setPetScale(scale: number): void {
+    this.store.savePetScale(scale)
+    this.db.petScale = this.store.petScale
+  }
+
   get petStyle(): PetStyle {
     return this.db.petStyle === 'live2d' ? 'live2d' : 'mochi'
   }

@@ -18,6 +18,7 @@ export class TauriApi implements WorkEncouragerApi {
   private readonly settingsListeners = new Set<(settings: Settings) => void>()
   private readonly historyListeners = new Set<() => void>()
   private readonly petListeners = new Set<(stats: PetStats) => void>()
+  private readonly petScaleListeners = new Set<(scale: number) => void>()
   private lastSettleAt = 0
 
   constructor(service: LocalService) {
@@ -82,6 +83,11 @@ export class TauriApi implements WorkEncouragerApi {
     return invoke<boolean>('toggle_pet_window')
   }
 
+  /** 宠物页收到 Rust 的 pet-scale 事件后调这里，转发给订阅者 */
+  emitPetScale(scale: number): void {
+    this.petScaleListeners.forEach((callback) => callback(scale))
+  }
+
   onPetTapped(callback: (stats: PetStats) => void): () => void {
     this.petListeners.add(callback)
     return () => this.petListeners.delete(callback)
@@ -124,9 +130,33 @@ export class TauriApi implements WorkEncouragerApi {
       y: number
       width: number
       height: number
+      scale: number
       work_area: { x: number; y: number; width: number; height: number }
     }>('pet_env')
-    return { x: env.x, y: env.y, width: env.width, height: env.height, workArea: env.work_area }
+    return {
+      x: env.x,
+      y: env.y,
+      width: env.width,
+      height: env.height,
+      scale: Number(env.scale) || 0.8,
+      workArea: env.work_area
+    }
+  }
+
+  async getPetScale(): Promise<number> {
+    return this.service.petScale
+  }
+
+  async setPetScale(scale: number): Promise<number> {
+    const next = await this.service.setPetScale(scale)
+    // 立刻把宠物窗改成等比尺寸，并把新的比例广播给宠物页去重新排版角色
+    await invoke('pet_apply_scale', { scale: next })
+    return next
+  }
+
+  onPetScaleChanged(callback: (scale: number) => void): () => void {
+    this.petScaleListeners.add(callback)
+    return () => this.petScaleListeners.delete(callback)
   }
 
   async movePet(x: number, y: number): Promise<{ x: number; y: number } | null> {

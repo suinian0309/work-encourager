@@ -50,9 +50,21 @@ export interface WorkEncouragerApi {
   removeLive2d(): Promise<PetStyleState>
   openLive2dFolder(): Promise<boolean>
   /** 宠物窗口自身位置与所在显示器工作区，用于拖动/抛掷物理 */
-  getPetEnv(): Promise<{ x: number; y: number; width: number; height: number; workArea: { x: number; y: number; width: number; height: number } }>
+  getPetEnv(): Promise<{
+    x: number
+    y: number
+    width: number
+    height: number
+    /** 宠物显示比例，渲染层据此缩放角色 */
+    scale: number
+    workArea: { x: number; y: number; width: number; height: number }
+  }>
   /** 直接移动宠物窗口（坐标是屏幕逻辑像素），返回真正生效的位置（可能被工作区夹住） */
   movePet(x: number, y: number): Promise<{ x: number; y: number } | null>
+  getPetScale(): Promise<number>
+  setPetScale(scale: number): Promise<number>
+  /** 设置页改了比例后，宠物窗靠这个回调实时缩放，不用重启 */
+  onPetScaleChanged(callback: (scale: number) => void): () => void
   onNavigate(callback: (target: 'settings' | 'history' | 'main') => void): () => void
   onTimerChanged(callback: (state: AppState) => void): () => void
   onSettingsApplied(callback: (settings: Settings) => void): () => void

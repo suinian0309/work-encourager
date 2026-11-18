@@ -11,20 +11,18 @@
  * 所以：按下只告诉 body 位置（用于点击判定），移动时只搬窗口，绝不喂 move；松手时用一个
  * 未来时间戳的 up 把 press 清掉（超过 400ms 的按压不触发 poke）。
  *
- * 抛掷照抄 Coopanion 的思路：它的宠物窗口铺满整个屏幕，所以"扔出屏幕"时是靠画布里的
- * 撞墙反弹（`body.js` 的 air 分支：`if (pet.x < minX()) pet.vx = Math.abs(pet.vx) * .55`）
- * 让角色弹回来。我们的窗口只有 210×266，于是把这套物理搬到窗口层面：松手后带初速度飞、
- * 撞到工作区上/左/右三边按 0.55 反弹、落到底边（任务栏之上）后：
- *   - 摔得狠（冲击 > DIZZY_IMPACT）→ 调 body 的 dizzy 演三秒蝴蝶结眼 + 甩头，醒来再走回去；
- *   - 轻轻放下 → 直接走回去。
+ * 抛掷的物理搬到窗口层面（窗口只有基准 210×266，按比例缩放）：松手后带初速度飞，
+ * 撞到工作区上/左/右三边**只停下、不反弹**，然后竖直落到底边（任务栏上沿）；
+ * 一落地就调 body 的 dizzy 演三秒蝴蝶结眼 + 甩头，醒来再走回扔出去之前的位置。
+ * 只是拖动挪位置的话，落点就是新的家，不会自己再跑回去。
  * 走回去时窗口负责位移，身体只播放步伐（body.js 的 walkInPlace 补丁），
  * 拖动时窗口负责位移，身体只播放歪斜（body.js 的 setTilt 补丁）。
  */
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createBody } from '../whale/body.js'
 import { createWhaleFigure } from '../whale/figure.js'
 
-const props = defineProps<{ paused?: boolean }>()
+const props = defineProps<{ paused?: boolean; scale?: number }>()
 const emit = defineEmits<{
   (e: 'ready'): void
   (e: 'poke'): void
@@ -61,28 +59,21 @@ let vx = 0
 let vy = 0
 /** 落地后自己走回原位 */
 let walking = false
-/** 本次飞行的最大落地冲击速度（像素/秒） */
-let impact = 0
 /** 晕倒要持续到什么时候（performance.now 毫秒），0 表示没在晕 */
 let dizzyUntil = 0
 
-const S = 0.854
+/** 100% 比例下的基准缩放；实际 = 基准 × props.scale（设置页滑杆 60%–140%） */
+const BASE_S = 0.854
+let S = BASE_S * (props.scale ?? 0.8)
 const FLOOR = 0.92
 const DRAG_THRESHOLD = 4
 const GRAVITY = 2600
-/** 撞墙损耗，和 body.js 的 air 分支保持一致 */
-const BOUNCE = 0.55
-/** 低于这个速度算落地 */
-const LAND_VY = 180
-const LAND_VX = 90
-/** 贴地滑行的摩擦系数（越大停得越快） */
-const FRICTION = 3.2
 /** 走回去的速度（像素/秒） */
 const WALK_SPEED = 150
-/** 落地冲击超过这个值就晕（body.js 里 land() 用 1000 作为 throw 的阈值） */
-const DIZZY_IMPACT = 900
 /** 晕倒时长：body.js 的 dizzy 是 2.4s 晃 + 0.6s 甩头 */
 const DIZZY_TIME = 3000
+/** 松手速度超过这个值才算"扔"，否则只是挪了个位置 */
+const THROW_SPEED = 520
 
 function stageBounds() {
   const el = stage.value
@@ -96,11 +87,11 @@ function onPetEvent(kind: string, detail: any) {
   if (detail?.kind === 'poke') emit('poke')
 }
 
-/** 默认的家：屏幕右下角 */
+/** 默认的家：贴着任务栏上沿、距右边缘 5% 屏宽（和主进程的 defaultPetBounds 一致） */
 function home() {
   return {
-    x: Math.round(area.x + area.width - win.width - 40),
-    y: Math.round(area.y + area.height - win.height - 80)
+    x: Math.round(area.x + area.width - win.width - area.width * 0.05),
+    y: Math.round(area.y + area.height - win.height - 8)
   }
 }
 
@@ -193,7 +184,11 @@ function tick(now: number) {
   frame = requestAnimationFrame(tick)
 }
 
-/** 抛掷：重力 + 撞工作区边缘反弹 + 地面摩擦。扔不出屏幕，只会弹回来然后自己走回原位。 */
+/**
+ * 抛掷：重力 + 撞边只停不弹。
+ * 撞到上/左/右任何一边都只是把速度吃掉（所以它不会再弹回去），然后竖直落到底边；
+ * 一碰到任务栏上沿就落地、立刻眩晕（body.js 的 dizzy 动作），晕完再自己走回扔出去之前的位置。
+ */
 function stepFlight(dt: number) {
   const maxX = area.x + area.width - win.width
   const maxY = area.y + area.height - win.height
@@ -201,53 +196,39 @@ function stepFlight(dt: number) {
   let x = pos.x + vx * dt
   let y = pos.y + vy * dt
 
-  if (x < area.x) {
+  if (x <= area.x) {
     x = area.x
-    vx = Math.abs(vx) * BOUNCE
-  } else if (x > maxX) {
+    vx = 0
+  } else if (x >= maxX) {
     x = maxX
-    vx = -Math.abs(vx) * BOUNCE
+    vx = 0
   }
-  if (y < area.y) {
+  if (y <= area.y) {
+    // 撞到屏幕顶部：横向力度也一并吃掉，接着竖直落下
     y = area.y
-    vy = Math.abs(vy) * BOUNCE
-  } else if (y > maxY) {
-    y = maxY
-    // 记下落地的冲击速度：够狠就会晕
-    impact = Math.max(impact, Math.abs(vy))
-    vy = -Math.abs(vy) * BOUNCE
-    if (Math.abs(vy) < LAND_VY) vy = 0
+    vy = Math.max(0, vy)
+    vx = 0
   }
-
-  // 贴地滑行时给横向速度加摩擦，否则它会在地板上一直弹来弹去，永远落不下来
-  if (Math.abs(y - maxY) < 0.5 && Math.abs(vy) < 1) {
-    vy = 0
-    vx *= Math.max(0, 1 - dt * FRICTION)
-    if (Math.abs(vx) < LAND_VX) {
-      vx = 0
-      flying = false
-      place(x, y)
-      land(impact)
-      return
-    }
+  if (y >= maxY) {
+    y = maxY
+    flying = false
+    place(x, y)
+    land()
+    return
   }
   place(x, y)
 }
 
-/** 落地：甩得狠先晕三秒（蝴蝶结眼 + 甩头），不然直接走回原位 */
-function land(impactSpeed: number) {
-  const hard = impactSpeed > DIZZY_IMPACT
-  impact = 0
-  if (hard) {
-    dizzyUntil = performance.now() + DIZZY_TIME
-    try {
-      body?.do?.('dizzy')
-    } catch {
-      /* 没有这个词就只是没有晕倒动作，三秒后照样走回去 */
-    }
-    return
+/** 落地：先晕三秒（蝴蝶结眼 + 甩头），醒来再慢慢走回原位 */
+function land() {
+  vx = 0
+  vy = 0
+  dizzyUntil = performance.now() + DIZZY_TIME
+  try {
+    body?.do?.('dizzy')
+  } catch {
+    /* 没有这个词就只是没有晕倒动作，三秒后照样走回去 */
   }
-  startWalkHome()
 }
 
 function startWalkHome() {
@@ -323,7 +304,6 @@ function onDown(e: PointerEvent) {
   flying = false
   walking = false
   dizzyUntil = 0
-  impact = 0
   vx = 0
   vy = 0
   try {
@@ -376,11 +356,10 @@ function onUp(e: PointerEvent) {
     } catch {
       /* 忽略 */
     }
-    if (Math.hypot(v.x, v.y) > 520) {
-      // 甩出去：给窗口一个初速度，剩下的交给重力与反弹
+    if (Math.hypot(v.x, v.y) > THROW_SPEED) {
+      // 甩出去：给窗口一个初速度，剩下的交给重力（撞边只停不弹）
       vx = Math.max(-1800, Math.min(1800, v.x * 0.9))
       vy = Math.max(-2400, Math.min(600, v.y * 0.9))
-      impact = 0
       flying = true
       try {
         // 空中扑腾两下鳍（body 的 flap 是个短动作，够覆盖下落这段）
@@ -389,8 +368,8 @@ function onUp(e: PointerEvent) {
         /* 忽略 */
       }
     } else {
-      // 慢慢放下：原地落地，然后自己走回原位
-      land(0)
+      // 只是拖到别处：落点就是新家，不再自己跑回去
+      rest = { ...pos }
     }
   } else {
     body.pointer('up', toStage(e))
@@ -421,12 +400,28 @@ onMounted(() => {
         return null
       }
     })(),
+    scale: S,
     pos: { ...pos },
     area: { ...area },
     win: { ...win },
     home: home()
   })
 })
+
+watch(
+  () => props.scale,
+  (value) => {
+    const next = Number(value)
+    S = BASE_S * (Number.isFinite(next) && next > 0 ? next : 0.8)
+    try {
+      body?.layout?.()
+    } catch {
+      /* 旧版 body 没有 layout 就等下一次 resize */
+    }
+    // 窗口尺寸跟着比例变了：把 pos/area/win 重新同步，免得下一次抛掷用旧边界算碰撞
+    void syncEnv()
+  }
+)
 
 onBeforeUnmount(() => {
   disposed = true

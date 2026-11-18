@@ -202,23 +202,32 @@ function expandFloat(): void {
   updateTray()
 }
 
-/** 鲸鱼娘要留给头顶气泡和脚下阴影，窗口比团子猫略大 */
-const PET_SIZE: Record<PetStyle, { width: number; height: number }> = {
-  mochi: { width: 210, height: 266 },
-  live2d: { width: 210, height: 266 }
+/** 100% 时的窗口尺寸；实际尺寸 = 基准 × petScale（比例可在设置里调） */
+const PET_BASE = { width: 210, height: 266 }
+const PET_SCALE_MIN = 0.6
+const PET_SCALE_MAX = 1.4
+const PET_SCALE_DEFAULT = 0.8
+
+function petScale(): number {
+  const raw = Number(service?.petScale)
+  if (!Number.isFinite(raw)) return PET_SCALE_DEFAULT
+  return Math.min(PET_SCALE_MAX, Math.max(PET_SCALE_MIN, raw))
 }
 
-function petSize(): { width: number; height: number } {
-  const style = service?.petStyle ?? 'mochi'
-  return PET_SIZE[style]
+function petSize(scale = petScale()): { width: number; height: number } {
+  return {
+    width: Math.round(PET_BASE.width * scale),
+    height: Math.round(PET_BASE.height * scale)
+  }
 }
 
+/** 默认落点：贴着任务栏上沿，距右边缘 5% 屏宽 */
 function defaultPetBounds(): { x: number; y: number } {
   const area = screen.getPrimaryDisplay().workArea
   const size = petSize()
   return {
-    x: area.x + area.width - size.width - 280,
-    y: area.y + area.height - size.height - 24
+    x: Math.round(area.x + area.width - size.width - area.width * 0.05),
+    y: Math.round(area.y + area.height - size.height - 8)
   }
 }
 
@@ -671,6 +680,7 @@ function registerIpc(): void {
       y: bounds.y,
       width: bounds.width,
       height: bounds.height,
+      scale: petScale(),
       workArea: {
         x: display.workArea.x,
         y: display.workArea.y,
@@ -678,6 +688,28 @@ function registerIpc(): void {
         height: display.workArea.height
       }
     }
+  })
+
+  ipcMain.handle('pet:scale', () => petScale())
+
+  ipcMain.handle('pet:scale:set', (_event, value: number) => {
+    const serviceRef = getService()
+    const raw = Number(value)
+    const next = Number.isFinite(raw) ? Math.min(PET_SCALE_MAX, Math.max(PET_SCALE_MIN, raw)) : PET_SCALE_DEFAULT
+    serviceRef.setPetScale(next)
+    const window = petWindow
+    if (window) {
+      const bounds = window.getBounds()
+      const size = petSize(next)
+      // 以中心为锚点缩放：不然一放大就往下掉出屏幕
+      const centerX = bounds.x + bounds.width / 2
+      const centerY = bounds.y + bounds.height / 2
+      const x = Math.round(centerX - size.width / 2)
+      const y = Math.round(centerY - size.height / 2)
+      window.setBounds({ x, y, width: size.width, height: size.height })
+      window.webContents.send('pet:scale', { scale: next })
+    }
+    return next
   })
 
   ipcMain.handle('pet:move', (_event, x: number, y: number) => {

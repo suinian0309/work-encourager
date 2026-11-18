@@ -117,6 +117,8 @@ export interface AppDb {
   petBounds?: { x: number; y: number } | null
   /** 桌面形象：团子猫（矢量自绘）或 Live2D 模型 */
   petStyle?: PetStyle
+  /** 宠物显示比例（0.6–1.4），默认 0.8 */
+  petScale?: number
   /** 已导入的 Live2D 模型信息（文件位于用户数据目录） */
   live2d?: Live2dModelInfo | null
 }

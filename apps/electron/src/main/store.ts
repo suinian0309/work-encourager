@@ -53,7 +53,8 @@ export function createInitialDb(now: number): AppDb {
     records: [],
     petDaily: {},
     petTotal: 0,
-    petBounds: null
+    petBounds: null,
+    petScale: 0.8
   }
 }
 
@@ -147,8 +148,16 @@ export function normalizeDb(raw: Partial<AppDb>, now: number): AppDb {
         ? { x: Number(raw.petBounds.x), y: Number(raw.petBounds.y) }
         : null,
     petStyle: raw.petStyle === 'live2d' ? 'live2d' : 'mochi',
+    petScale: normalizePetScale(raw.petScale),
     live2d: normalizeLive2d(raw.live2d)
   }
+}
+
+/** 宠物比例：0.6–1.4，默认 0.8，越界或非数字都落回默认 */
+function normalizePetScale(raw: unknown): number {
+  const value = Number(raw)
+  if (!Number.isFinite(value)) return 0.8
+  return Math.min(1.4, Math.max(0.6, value))
 }
 
 /** Live2D 模型元信息：只接受我们自己写入的字段，id 用于拼自定义协议与磁盘目录 */
@@ -189,6 +198,8 @@ export interface StoreHandle {
   saveFloatBounds(bounds: { x: number; y: number }): void
   savePetCounts(daily: Record<string, number>, total: number): void
   savePetBounds(bounds: { x: number; y: number }): void
+  savePetScale(scale: number): void
+  readonly petScale: number
   savePetStyle(style: PetStyle): void
   saveLive2d(info: Live2dModelInfo | null): void
 }
@@ -277,6 +288,13 @@ export function openStore(cwd?: string): StoreHandle {
     savePetBounds(bounds) {
       db.petBounds = { x: Math.round(bounds.x), y: Math.round(bounds.y) }
       persist('petBounds', db.petBounds)
+    },
+    savePetScale(scale) {
+      db.petScale = normalizePetScale(scale)
+      persist('petScale', db.petScale)
+    },
+    get petScale() {
+      return db.petScale ?? 0.8
     },
     savePetStyle(style) {
       db.petStyle = style === 'live2d' ? 'live2d' : 'mochi'

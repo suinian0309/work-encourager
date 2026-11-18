@@ -2,7 +2,9 @@
 /**
  * 宠物窗：鲸鱼娘 + 摸鱼计数。
  *
- * 点她 = 摸鱼 +1（由 PetWhale 报上来的 poke 事件驱动），拎起来再松手会掉回舞台上。
+ * 点她 = 摸鱼 +1（由 PetWhale 报上来的 poke 事件驱动），按住可以拎起来，
+ * 甩出去会飞一段、落地晕一下再自己走回原位。
+ * 脚下的「今日摸鱼 N 次」只在鼠标移到宠物上时淡入，平时透明，不挡壁纸。
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { PetStats } from '@shared/types'
@@ -12,9 +14,12 @@ const stats = ref<PetStats>({ dateKey: '', today: 0, total: 0 })
 const bubble = ref('')
 const error = ref('')
 const floaters = ref<Array<{ id: number; left: number }>>([])
+/** 显示比例：只有尺寸变了才重新排版，所以放在这里当 prop 传下去 */
+const petScale = ref(0.8)
 
 let bubbleTimer: number | undefined
 let floaterSeed = 0
+let offScale: (() => void) | null = null
 
 const PHRASES = [
   '摸鱼 +1，老板没看见 👀',
@@ -74,10 +79,20 @@ onMounted(async () => {
   } catch {
     // 读取失败就从 0 开始，不影响点击
   }
+  try {
+    const env = await window.workEncourager.getPetEnv()
+    if (Number.isFinite(env?.scale)) petScale.value = env.scale
+  } catch {
+    // 拿不到比例就按默认 0.8 渲染
+  }
+  offScale = window.workEncourager.onPetScaleChanged?.((next) => {
+    if (Number.isFinite(next)) petScale.value = next
+  })
 })
 
 onBeforeUnmount(() => {
   if (bubbleTimer) window.clearTimeout(bubbleTimer)
+  offScale?.()
 })
 </script>
 
@@ -88,7 +103,13 @@ onBeforeUnmount(() => {
     <div class="pet-stage" title="点一下摸鱼 +1 · 拖住可以拎起来">
       <div class="pet-bubble" :class="{ show: !!bubble }">{{ bubble }}</div>
 
-      <PetWhale @poke="tap" @grab="onLift" @drop="onDrop" @error="(message) => (error = message)" />
+      <PetWhale
+        :scale="petScale"
+        @poke="tap"
+        @grab="onLift"
+        @drop="onDrop"
+        @error="(message) => (error = message)"
+      />
 
       <span v-for="item in floaters" :key="item.id" class="floater" :style="{ left: `${item.left}px` }">+1</span>
       <p v-if="error" class="pet-error">{{ error }}</p>
@@ -199,30 +220,38 @@ onBeforeUnmount(() => {
   }
 }
 
+/* 平时完全透明，鼠标落到宠物上才淡入；去掉胶囊底框，只用深灰字 + 淡白投影保证深色壁纸也看得清 */
 .pet-pill {
   flex: none;
   margin-top: 2px;
   display: flex;
   align-items: baseline;
   gap: 3px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 1px 4px rgba(46, 86, 68, 0.1);
-  color: #6b8579;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  color: #4a4a4a;
   font-size: 9px;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.pet-shell:hover .pet-pill {
+  opacity: 1;
 }
 
 .pet-pill .num {
-  color: #2e5a47;
+  color: #3a3a3a;
   font-size: 12px;
 }
 
 .pet-pill-total {
   margin-left: 4px;
   padding-left: 6px;
-  border-left: 1px solid rgba(46, 86, 68, 0.14);
-  color: #8ba79a;
+  border-left: 1px solid rgba(0, 0, 0, 0.14);
+  color: #5c5c5c;
 }
 
 .pet-error {

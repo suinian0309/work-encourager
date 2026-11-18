@@ -229,7 +229,8 @@ fn show_pet(app: &AppHandle) -> Result<(), String> {
   log_pet(app, "show: 开始显示宠物窗口");
   pet.show().map_err(|error| format!("显示宠物窗口失败：{error}"))?;
   // 透明窗在部分显卡驱动上第一次 show 不触发重绘，给一次同尺寸 set_size 逼它画一帧
-  let _ = pet.set_size(tauri::LogicalSize::new(PET_WIDTH, PET_HEIGHT));
+  let (pet_width, pet_height) = pet_size_of(pet_scale_of(app));
+  let _ = pet.set_size(tauri::LogicalSize::new(pet_width, pet_height));
   set_taskbar_hidden(&pet);
   let _ = pet.set_always_on_top(true);
   if !pet.is_visible().unwrap_or(true) {
@@ -255,18 +256,17 @@ fn show_pet(app: &AppHandle) -> Result<(), String> {
   Ok(())
 }
 
-/// 主屏右下角的默认落点（逻辑像素）
+/// 默认落点（逻辑像素）：贴着任务栏上沿，距右边缘 5% 屏宽
 fn default_pet_position(pet: &WebviewWindow) -> Option<(f64, f64)> {
   let monitor = pet.primary_monitor().ok().flatten()?;
   let scale = monitor.scale_factor();
-  let size = monitor.size();
-  let position = monitor.position();
-  let width = size.width as f64 / scale;
-  let height = size.height as f64 / scale;
-  Some((
-    position.x as f64 / scale + width - PET_WIDTH - 40.0,
-    position.y as f64 / scale + height - PET_HEIGHT - 80.0,
-  ))
+  let (pet_width, pet_height) = pet_size_of(pet_scale_of(pet.app_handle()));
+  let work = monitor.work_area();
+  let x = work.position.x as f64 / scale;
+  let y = work.position.y as f64 / scale;
+  let width = work.size.width as f64 / scale;
+  let height = work.size.height as f64 / scale;
+  Some((x + width - pet_width - width * 0.05, y + height - pet_height - 8.0))
 }
 
 /// 把宠物窗夹回它所在显示器的可见工作区
@@ -278,10 +278,11 @@ fn clamp_pet_position(pet: &WebviewWindow) {
     return;
   };
   let scale = pet.scale_factor().unwrap_or(1.0);
+  let (pet_width, pet_height) = pet_size_of(pet_scale_of(pet.app_handle()));
   let x = position.x as f64 / scale;
   let y = position.y as f64 / scale;
-  let next_x = x.min(ax + aw - PET_WIDTH).max(ax);
-  let next_y = y.min(ay + ah - PET_HEIGHT).max(ay);
+  let next_x = x.min(ax + aw - pet_width).max(ax);
+  let next_y = y.min(ay + ah - pet_height).max(ay);
   if (next_x - x).abs() > 1.0 || (next_y - y).abs() > 1.0 {
     let _ = pet.set_position(tauri::LogicalPosition::new(next_x, next_y));
   }
@@ -620,9 +621,29 @@ fn live2d_base_url() -> String {
   "http://live2d.localhost/".to_string()
 }
 
-/// 宠物窗尺寸（逻辑像素）：鲸鱼娘 300×380 的 70%
-const PET_WIDTH: f64 = 210.0;
-const PET_HEIGHT: f64 = 266.0;
+/// 100% 比例下的宠物窗尺寸（逻辑像素），实际尺寸 = 基准 × petScale
+const PET_BASE_WIDTH: f64 = 210.0;
+const PET_BASE_HEIGHT: f64 = 266.0;
+const PET_SCALE_DEFAULT: f64 = 0.8;
+
+fn normalize_pet_scale(raw: Option<f64>) -> f64 {
+  match raw {
+    Some(value) if value.is_finite() => value.clamp(0.6, 1.4),
+    _ => PET_SCALE_DEFAULT,
+  }
+}
+
+/// 从 db 里读宠物比例；没写过就按默认 80%
+fn pet_scale_of(app: &AppHandle) -> f64 {
+  normalize_pet_scale(read_db(app).and_then(|db| db.get("petScale").and_then(|value| value.as_f64())))
+}
+
+fn pet_size_of(scale: f64) -> (f64, f64) {
+  (
+    (PET_BASE_WIDTH * scale).round(),
+    (PET_BASE_HEIGHT * scale).round(),
+  )
+}
 
 #[tauri::command]
 fn pet_apply_style(app: AppHandle, style: String) -> Result<(), String> {
@@ -630,11 +651,40 @@ fn pet_apply_style(app: AppHandle, style: String) -> Result<(), String> {
     return Ok(());
   };
   let _ = style;
-  let (width, height) = (PET_WIDTH, PET_HEIGHT);
+  let (width, height) = pet_size_of(pet_scale_of(&app));
   pet
     .set_size(tauri::LogicalSize::new(width, height))
     .map_err(|error| format!("调整宠物窗口尺寸失败：{error}"))?;
   Ok(())
+}
+
+/// 设置页拖动比例滑杆时调用：按中心等比缩放，并把新比例广播给宠物页重新排版角色
+#[tauri::command]
+fn pet_apply_scale(app: AppHandle, scale: f64) -> Result<f64, String> {
+  let next = normalize_pet_scale(Some(scale));
+  if let Some(pet) = app.get_webview_window("pet") {
+    let (width, height) = pet_size_of(next);
+    let factor = pet.scale_factor().unwrap_or(1.0);
+    let center = pet.outer_position().ok().map(|position| {
+      let size = pet.outer_size().unwrap_or(tauri::PhysicalSize::new(0, 0));
+      (
+        position.x as f64 + size.width as f64 / 2.0,
+        position.y as f64 + size.height as f64 / 2.0,
+      )
+    });
+    pet
+      .set_size(tauri::LogicalSize::new(width, height))
+      .map_err(|error| format!("调整宠物窗口尺寸失败：{error}"))?;
+    if let Some((cx, cy)) = center {
+      // 以中心为锚点：不然一放大就往下掉出屏幕
+      let x = cx - width * factor / 2.0;
+      let y = cy - height * factor / 2.0;
+      let _ = pet.set_position(tauri::LogicalPosition::new(x / factor, y / factor));
+      clamp_pet_position(&pet);
+    }
+    let _ = pet.emit("pet-scale", next);
+  }
+  Ok(next)
 }
 
 #[derive(serde::Serialize)]
@@ -643,6 +693,8 @@ struct PetEnv {
   y: f64,
   width: f64,
   height: f64,
+  /// 宠物显示比例，渲染层据此缩放角色
+  scale: f64,
   work_area: PetArea,
 }
 
@@ -692,6 +744,7 @@ fn pet_env(app: AppHandle) -> Result<PetEnv, String> {
     y: position.y as f64 / scale,
     width: size.width as f64 / scale,
     height: size.height as f64 / scale,
+    scale: pet_scale_of(&app),
     work_area: area,
   })
 }
@@ -1093,6 +1146,7 @@ pub fn run() {
       live2d_open_folder,
       live2d_base_url,
       pet_apply_style,
+      pet_apply_scale,
       pet_env,
       move_pet_window
     ])
@@ -1146,7 +1200,8 @@ pub fn run() {
         }
         let _ = pet.set_skip_taskbar(true);
         set_taskbar_hidden(&pet);
-        let _ = pet.set_size(tauri::LogicalSize::new(PET_WIDTH, PET_HEIGHT));
+        let (pet_width, pet_height) = pet_size_of(pet_scale_of(pet.app_handle()));
+  let _ = pet.set_size(tauri::LogicalSize::new(pet_width, pet_height));
         // 上次的位置可能是已经拔掉的显示器，先夹回可见区域
         clamp_pet_position(&pet);
       }

@@ -245,6 +245,18 @@ export class LocalService {
     await this.persist()
   }
 
+  get petScale(): number {
+    return this.db.petScale ?? 0.8
+  }
+
+  async setPetScale(scale: number): Promise<number> {
+    const value = Number(scale)
+    const next = Number.isFinite(value) ? Math.min(1.4, Math.max(0.6, value)) : 0.8
+    this.db.petScale = next
+    await this.persist()
+    return next
+  }
+
   get petStyle(): PetStyle {
     return this.db.petStyle ?? 'mochi'
   }

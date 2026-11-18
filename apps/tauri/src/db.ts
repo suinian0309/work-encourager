@@ -35,6 +35,7 @@ export function createInitialDb(now: number): AppDb {
     petTotal: 0,
     petBounds: null,
     petStyle: 'mochi',
+    petScale: 0.8,
     live2d: null
   }
 }
@@ -154,8 +155,16 @@ export function normalizeDb(raw: Partial<AppDb>, now: number): AppDb {
         ? { x: Number(raw.petBounds.x), y: Number(raw.petBounds.y) }
         : null,
     petStyle: normalizedStyle,
+    petScale: normalizePetScale(raw.petScale),
     live2d: normalizedLive2d
   }
+}
+
+/** 宠物比例：0.6–1.4，默认 0.8，越界或非数字都落回默认 */
+function normalizePetScale(raw: unknown): number {
+  const value = Number(raw)
+  if (!Number.isFinite(value)) return 0.8
+  return Math.min(1.4, Math.max(0.6, value))
 }
 
 export function parseDb(json: string | null, now: number): AppDb {

@@ -37,6 +37,13 @@ const api: WorkEncouragerApi = {
     ipcRenderer.on('pet:tapped', listener)
     return () => ipcRenderer.removeListener('pet:tapped', listener)
   },
+  getPetScale: () => ipcRenderer.invoke('pet:scale'),
+  setPetScale: (scale) => ipcRenderer.invoke('pet:scale:set', scale),
+  onPetScaleChanged(callback) {
+    const listener = (_event: unknown, payload: { scale: number }) => callback(Number(payload?.scale) || 0.8)
+    ipcRenderer.on('pet:scale', listener)
+    return () => ipcRenderer.removeListener('pet:scale', listener)
+  },
   onNavigate(callback) {
     const listener = (_event: unknown, target: 'settings' | 'history' | 'main') => callback(target)
     ipcRenderer.on('navigate', listener)
