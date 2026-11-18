@@ -82,8 +82,12 @@ export function createPetApi(): WorkEncouragerApi {
       return { x: env.x, y: env.y, width: env.width, height: env.height, workArea: env.work_area }
     },
     movePet: async (x: number, y: number) => {
-      await invoke('move_pet_window', { x, y })
-      return true
+      try {
+        const position = await invoke<{ x: number; y: number }>('move_pet_window', { x, y })
+        return position ?? null
+      } catch {
+        return null
+      }
     }
   }
 }

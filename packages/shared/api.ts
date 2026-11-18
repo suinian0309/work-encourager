@@ -51,8 +51,8 @@ export interface WorkEncouragerApi {
   openLive2dFolder(): Promise<boolean>
   /** 宠物窗口自身位置与所在显示器工作区，用于拖动/抛掷物理 */
   getPetEnv(): Promise<{ x: number; y: number; width: number; height: number; workArea: { x: number; y: number; width: number; height: number } }>
-  /** 直接移动宠物窗口（拖动与抛掷用，坐标是屏幕物理像素） */
-  movePet(x: number, y: number): Promise<boolean>
+  /** 直接移动宠物窗口（坐标是屏幕逻辑像素），返回真正生效的位置（可能被工作区夹住） */
+  movePet(x: number, y: number): Promise<{ x: number; y: number } | null>
   onNavigate(callback: (target: 'settings' | 'history' | 'main') => void): () => void
   onTimerChanged(callback: (state: AppState) => void): () => void
   onSettingsApplied(callback: (settings: Settings) => void): () => void

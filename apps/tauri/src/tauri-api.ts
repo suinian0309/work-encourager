@@ -129,9 +129,13 @@ export class TauriApi implements WorkEncouragerApi {
     return { x: env.x, y: env.y, width: env.width, height: env.height, workArea: env.work_area }
   }
 
-  async movePet(x: number, y: number): Promise<boolean> {
-    await invoke('move_pet_window', { x, y })
-    return true
+  async movePet(x: number, y: number): Promise<{ x: number; y: number } | null> {
+    try {
+      const position = await invoke<{ x: number; y: number }>('move_pet_window', { x, y })
+      return position ?? null
+    } catch {
+      return null
+    }
   }
 
   private async maybeSettle(now: number): Promise<void> {

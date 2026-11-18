@@ -1,13 +1,16 @@
 <script setup lang="ts">
 /**
- * 鲸鱼娘：Coopanion 的分层骨络小人（见 assets/whale）。
+ * 鲸鱼娘：Coopanion 的分层骨骼小人（见 assets/whale）。
  *
  * 身体由上层 `body.js` 驱动（走、跳、被拎起、被扔出去、做表情），本组件只负责给它一个舞台、
- * 每帧推进一次、把指针事件翻译成它的语言，并在被拎起时让窗口跟着鼠标走。
+ * 每帧推进一次、把指针事件翻译成它的语言。
  *
- * 拖动时的分工很关键：窗口跟着指针走，画布里的角色必须**冻在抓起的位置**。两边都动的话，
- * 指针相对窗口的坐标会持续变化，角色会被一层层推向画布边缘，最后被窗口裁掉（看起来就像
- * 有个看不见的框）。
+ * 拖动的分工是这里最容易出错的地方：**只动窗口，不动画布里的角色**。
+ * `body.js` 自己的 drag 模式会让角色在画布里追着指针走（它原本跑在一个大画布上），
+ * 我们的窗口只有 210×266，角色随便一偏就出画布、被窗口裁掉，看起来像"有个透明框把鱼切了"，
+ * 而且抓起来的一瞬间角色会从原位跳到指针下，像"点一下就飘走了"。
+ * 所以：按下只告诉 body 位置（用于点击判定），移动时只搬窗口，绝不喂 move；松手时用一个
+ * 未来时间戳的 up 把 press 清掉（超过 400ms 的按压不触发 poke）。
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { createBody } from '../whale/body.js'
@@ -27,19 +30,19 @@ let body: any = null
 let frame = 0
 let last = 0
 let disposed = false
-let dragging = false
-let dragOrigin = { sx: 0, sy: 0, wx: 0, wy: 0 }
-let env = { x: 0, y: 0 }
-/** 抓起时指针在画布里的位置：拖动期间冻在这里，位移全部交给窗口 */
-let anchor = { x: 0, y: 0 }
-/** 最近一次指针在画布里的位置 */
-let lastStage = { x: 0, y: 0 }
-let samples: Array<{ t: number; x: number; y: number }> = []
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+/** 按下过、还没松开 */
+let pressing = false
+/** 已经拖出阈值：从现在起只搬窗口 */
+let dragging = false
+let downStage = { x: 0, y: 0 }
+let downScreen = { x: 0, y: 0 }
+/** 按下时窗口位置；每次真正移动后同步成实际位置，避免和夹紧逻辑互相拉扯 */
+let base = { x: 0, y: 0 }
 
 const S = 0.854
 const FLOOR = 0.92
+const DRAG_THRESHOLD = 4
 
 function stageBounds() {
   const el = stage.value
@@ -51,14 +54,14 @@ function stageBounds() {
 function onPetEvent(kind: string, detail: any) {
   if (kind !== 'touch') return
   if (detail?.kind === 'poke') emit('poke')
-  else if (detail?.kind === 'grab') {
-    // 抓起的那一刻指针在哪，就把角色冻在哪
-    anchor = { ...lastStage }
-    dragging = true
-    emit('grab')
-  } else if (detail?.kind === 'drop' || detail?.kind === 'throw' || detail?.kind === 'crash') {
-    dragging = false
-    emit('drop')
+}
+
+async function syncEnv(): Promise<void> {
+  try {
+    const next = await window.workEncourager?.getPetEnv?.()
+    if (next) base = { x: Number(next.x) || 0, y: Number(next.y) || 0 }
+  } catch {
+    /* 拿不到位置就按 0 算，下一次移动会再校准 */
   }
 }
 
@@ -67,8 +70,8 @@ async function start() {
   const el = stage.value
   if (!el || disposed) return
   try {
-    const base = new URL('whale/', document.baseURI)
-    const figure = await createWhaleFigure(base, {})
+    const baseUrl = new URL('whale/', document.baseURI)
+    const figure = await createWhaleFigure(baseUrl, {})
     if (disposed) {
       figure.dispose?.()
       return
@@ -95,40 +98,11 @@ function tick(now: number) {
   last = now
   try {
     body.step(dt, !props.paused)
-    if (dragging) followPointer()
   } catch (err) {
     emit('error', err instanceof Error ? err.message : String(err))
     return
   }
   frame = requestAnimationFrame(tick)
-}
-
-let lastPointer = { x: 0, y: 0, screenX: 0, screenY: 0 }
-
-function followPointer() {
-  const { screenX, screenY } = lastPointer
-  void window.workEncourager?.movePet?.(
-    Math.round(dragOrigin.wx + screenX - dragOrigin.sx),
-    Math.round(dragOrigin.wy + screenY - dragOrigin.sy)
-  )
-}
-
-/** 记几个屏幕坐标采样，松手时用来判断是“放下”还是“扔出去” */
-function track(e: PointerEvent) {
-  const now = e.timeStamp || performance.now()
-  samples.push({ t: now, x: e.screenX, y: e.screenY })
-  while (samples.length > 2 && now - samples[0].t > 120) samples.shift()
-}
-
-function screenVelocity() {
-  if (samples.length < 2) return { x: 0, y: 0 }
-  const first = samples[0]
-  const lastSample = samples[samples.length - 1]
-  const dt = Math.max(16, lastSample.t - first.t)
-  return {
-    x: ((lastSample.x - first.x) * 1000) / dt,
-    y: ((lastSample.y - first.y) * 1000) / dt
-  }
 }
 
 function toStage(e: PointerEvent) {
@@ -139,45 +113,52 @@ function toStage(e: PointerEvent) {
 function onDown(e: PointerEvent) {
   if (!body) return
   ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-  anchor = toStage(e)
-  lastStage = { ...anchor }
-  dragOrigin = { sx: e.screenX, sy: e.screenY, wx: env.x, wy: env.y }
-  lastPointer = { x: e.clientX, y: e.clientY, screenX: e.screenX, screenY: e.screenY }
-  samples = []
-  track(e)
-  body.pointer('down', anchor)
+  const point = toStage(e)
+  pressing = true
+  dragging = false
+  downStage = { x: point.x, y: point.y }
+  downScreen = { x: e.screenX, y: e.screenY }
+  void syncEnv()
+  body.pointer('down', point)
 }
 
 function onMove(e: PointerEvent) {
-  lastPointer = { x: e.clientX, y: e.clientY, screenX: e.screenX, screenY: e.screenY }
-  track(e)
-  if (!body) return
-  const stage = toStage(e)
-  lastStage = { ...stage }
-  // 拖动期间喂固定坐标：角色留在画布里原来的位置，位移交给窗口
-  body.pointer('move', dragging ? anchor : stage)
+  if (!body || !pressing) return
+  const dx = e.screenX - downScreen.x
+  const dy = e.screenY - downScreen.y
+  if (!dragging) {
+    if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+    dragging = true
+    emit('grab')
+  }
+  void window.workEncourager
+    ?.movePet?.(Math.round(base.x + dx), Math.round(base.y + dy))
+    ?.then?.((applied: { x: number; y: number } | null | undefined) => {
+      // 窗口被夹在屏幕工作区内时会和请求位置不一致，重新锚一次，避免手指和窗口逐渐错位
+      if (applied && Number.isFinite(applied.x) && Number.isFinite(applied.y)) {
+        base = { x: applied.x, y: applied.y }
+        downScreen = { x: e.screenX, y: e.screenY }
+      }
+    })
+    ?.catch?.(() => {})
 }
 
 function onUp(e: PointerEvent) {
   if (!body) return
   if (dragging) {
-    const v = screenVelocity()
-    // 把窗口速度折算成一次虚拟位移，body 据此决定是轻轻放下还是抛出去
-    body.pointer('move', {
-      x: anchor.x + clamp(v.x * 0.04, -48, 48),
-      y: anchor.y + clamp(v.y * 0.04, -48, 48),
-      t: e.timeStamp - 8
-    })
+    // 用一个"已经按了很久"的时间戳收尾：body 只清 press，不会把拖动当成点击去 +1
+    body.pointer('up', { x: downStage.x, y: downStage.y, t: performance.now() + 1000 })
+    emit('drop')
+  } else {
+    body.pointer('up', toStage(e))
   }
-  body.pointer('up', anchor)
+  pressing = false
   dragging = false
 }
 
 onMounted(() => {
   void start()
-  void window.workEncourager?.getPetEnv?.().then((next: any) => {
-    env = { x: next?.x ?? 0, y: next?.y ?? 0 }
-  })
+  void syncEnv()
 })
 
 onBeforeUnmount(() => {

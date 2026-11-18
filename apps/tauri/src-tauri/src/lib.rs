@@ -224,11 +224,104 @@ fn wait_pet_window(app: &AppHandle) -> Option<WebviewWindow> {
 fn show_pet(app: &AppHandle) -> Result<(), String> {
   let pet = wait_pet_window(app).ok_or_else(|| "宠物窗口尚未创建".to_string())?;
   let _ = pet.set_skip_taskbar(true);
+  // 上次拖到已经拔掉的显示器、或者分辨率换过之后，先摆回可见区域再显示
+  clamp_pet_position(&pet);
+  log_pet(app, "show: 开始显示宠物窗口");
   pet.show().map_err(|error| format!("显示宠物窗口失败：{error}"))?;
+  // 透明窗在部分显卡驱动上第一次 show 不触发重绘，给一次同尺寸 set_size 逼它画一帧
+  let _ = pet.set_size(tauri::LogicalSize::new(PET_WIDTH, PET_HEIGHT));
   set_taskbar_hidden(&pet);
   let _ = pet.set_always_on_top(true);
+  if !pet.is_visible().unwrap_or(true) {
+    // 个别机器上透明窗第一次 show 会停在不可见状态：挪到主屏右下角、抢一次焦点再显示
+    if let Some((x, y)) = default_pet_position(&pet) {
+      let _ = pet.set_position(tauri::LogicalPosition::new(x, y));
+    }
+    let _ = pet.show();
+    let _ = pet.set_always_on_top(true);
+    let _ = pet.set_focus();
+    log_pet(app, "show: 第一次没显示出来，已重新定位并再次显示");
+  }
+  if !pet.is_visible().unwrap_or(true) {
+    let detail = pet
+      .outer_position()
+      .map(|p| format!("{},{}", p.x, p.y))
+      .unwrap_or_else(|_| "未知".to_string());
+    log_pet(app, &format!("show: 仍然不可见，位置 {detail}"));
+    return Err(format!("宠物窗口没能显示出来（位置 {detail}）"));
+  }
+  log_pet(app, "show: 已显示");
   refresh_tray(app);
   Ok(())
+}
+
+/// 主屏右下角的默认落点（逻辑像素）
+fn default_pet_position(pet: &WebviewWindow) -> Option<(f64, f64)> {
+  let monitor = pet.primary_monitor().ok().flatten()?;
+  let scale = monitor.scale_factor();
+  let size = monitor.size();
+  let position = monitor.position();
+  let width = size.width as f64 / scale;
+  let height = size.height as f64 / scale;
+  Some((
+    position.x as f64 / scale + width - PET_WIDTH - 40.0,
+    position.y as f64 / scale + height - PET_HEIGHT - 80.0,
+  ))
+}
+
+/// 把宠物窗夹回它所在显示器的可见工作区
+fn clamp_pet_position(pet: &WebviewWindow) {
+  let Some((ax, ay, aw, ah)) = pet_work_area(pet) else {
+    return;
+  };
+  let Ok(position) = pet.outer_position() else {
+    return;
+  };
+  let scale = pet.scale_factor().unwrap_or(1.0);
+  let x = position.x as f64 / scale;
+  let y = position.y as f64 / scale;
+  let next_x = x.min(ax + aw - PET_WIDTH).max(ax);
+  let next_y = y.min(ay + ah - PET_HEIGHT).max(ay);
+  if (next_x - x).abs() > 1.0 || (next_y - y).abs() > 1.0 {
+    let _ = pet.set_position(tauri::LogicalPosition::new(next_x, next_y));
+  }
+}
+
+/// 宠物窗所在显示器的可见工作区（逻辑像素）
+fn pet_work_area(pet: &WebviewWindow) -> Option<(f64, f64, f64, f64)> {
+  let monitor = pet
+    .current_monitor()
+    .ok()
+    .flatten()
+    .or_else(|| pet.primary_monitor().ok().flatten())?;
+  let scale = pet.scale_factor().unwrap_or(1.0);
+  let work = monitor.work_area();
+  Some((
+    work.position.x as f64 / scale,
+    work.position.y as f64 / scale,
+    work.size.width as f64 / scale,
+    work.size.height as f64 / scale,
+  ))
+}
+
+/// 宠物窗的显示问题只在这台机器上复现过，留一份很小的日志方便现场排查
+fn log_pet(app: &AppHandle, message: &str) {
+  let Some(state) = app.try_state::<AppState>() else {
+    return;
+  };
+  let path = state.data_dir.join("pet.log");
+  let stamp = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_secs())
+    .unwrap_or(0);
+  let _ = fs::OpenOptions::new()
+    .create(true)
+    .append(true)
+    .open(path)
+    .and_then(|mut file| {
+      use std::io::Write;
+      writeln!(file, "[{stamp}] {message}")
+    });
 }
 
 fn hide_pet(app: &AppHandle) {
@@ -603,13 +696,19 @@ fn pet_env(app: AppHandle) -> Result<PetEnv, String> {
   })
 }
 
+#[derive(serde::Serialize)]
+struct PetPos {
+  x: f64,
+  y: f64,
+}
+
 #[tauri::command]
-fn move_pet_window(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
+fn move_pet_window(app: AppHandle, x: f64, y: f64) -> Result<PetPos, String> {
   let Some(pet) = app.get_webview_window("pet") else {
-    return Ok(());
+    return Err("宠物窗口未创建".to_string());
   };
   if !x.is_finite() || !y.is_finite() {
-    return Ok(());
+    return Err("窗口位置无效".to_string());
   }
   let scale = pet.scale_factor().unwrap_or(1.0);
   let size = pet
@@ -636,7 +735,12 @@ fn move_pet_window(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
   }
   pet
     .set_position(tauri::PhysicalPosition::new(px.round() as i32, py.round() as i32))
-    .map_err(|error| format!("移动宠物窗口失败：{error}"))
+    .map_err(|error| format!("移动宠物窗口失败：{error}"))?;
+  // 回传真正生效的位置：被屏幕边缘夹住时前端据此重新锚定，手指和窗口不会越拖越错位
+  Ok(PetPos {
+    x: px.round() / scale,
+    y: py.round() / scale,
+  })
 }
 
 fn serve_live2d(app: &AppHandle, path: &str) -> Option<(Vec<u8>, &'static str)> {
@@ -1037,19 +1141,14 @@ pub fn run() {
           });
         if let Some((x, y)) = saved {
           let _ = pet.set_position(tauri::LogicalPosition::new(x, y));
-        } else if let Ok(Some(monitor)) = pet.primary_monitor() {
-          let scale = monitor.scale_factor();
-          let size = monitor.size();
-          let position = monitor.position();
-          let width = size.width as f64 / scale;
-          let height = size.height as f64 / scale;
-          let x = position.x as f64 / scale + width - 268.0;
-          let y = position.y as f64 / scale + height - 460.0;
+        } else if let Some((x, y)) = default_pet_position(&pet) {
           let _ = pet.set_position(tauri::LogicalPosition::new(x, y));
         }
         let _ = pet.set_skip_taskbar(true);
         set_taskbar_hidden(&pet);
         let _ = pet.set_size(tauri::LogicalSize::new(PET_WIDTH, PET_HEIGHT));
+        // 上次的位置可能是已经拔掉的显示器，先夹回可见区域
+        clamp_pet_position(&pet);
       }
       spawn_reminders(app.handle().clone());
       Ok(())

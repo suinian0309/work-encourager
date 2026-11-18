@@ -314,8 +314,27 @@ function createPetWindow(): BrowserWindow {
   return window
 }
 
+/** 窗口被拖到已拔掉的显示器、或分辨率变了之后，重新摆回主屏可见区域 */
+function ensurePetOnScreen(window: BrowserWindow): void {
+  const bounds = window.getBounds()
+  const visible = screen.getAllDisplays().some((display) => {
+    const area = display.workArea
+    return (
+      bounds.x + bounds.width > area.x + 40 &&
+      bounds.x < area.x + area.width - 40 &&
+      bounds.y + bounds.height > area.y + 40 &&
+      bounds.y < area.y + area.height - 40
+    )
+  })
+  if (visible) return
+  const fallback = defaultPetBounds()
+  window.setPosition(fallback.x, fallback.y, false)
+}
+
 function showPet(): boolean {
-  createPetWindow().showInactive()
+  const window = createPetWindow()
+  ensurePetOnScreen(window)
+  window.showInactive()
   updateTray()
   return true
 }
@@ -667,12 +686,11 @@ function registerIpc(): void {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return false
     const bounds = window.getBounds()
     const { workArea } = screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) })
-    window.setPosition(
-      Math.min(Math.max(Math.round(x), workArea.x), workArea.x + workArea.width - bounds.width),
-      Math.min(Math.max(Math.round(y), workArea.y), workArea.y + workArea.height - bounds.height),
-      false
-    )
-    return true
+    const nextX = Math.min(Math.max(Math.round(x), workArea.x), workArea.x + workArea.width - bounds.width)
+    const nextY = Math.min(Math.max(Math.round(y), workArea.y), workArea.y + workArea.height - bounds.height)
+    window.setPosition(nextX, nextY, false)
+    // 把真正生效的位置回给渲染层：被屏幕边缘夹住时，前端据此重新锚定，手指和窗口才不会越拖越错位
+    return { x: nextX, y: nextY }
   })
 }
 

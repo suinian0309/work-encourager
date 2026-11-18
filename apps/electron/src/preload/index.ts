@@ -27,7 +27,11 @@ const api: WorkEncouragerApi = {
   removeLive2d: () => ipcRenderer.invoke('live2d:remove'),
   openLive2dFolder: () => ipcRenderer.invoke('live2d:open-folder'),
   getPetEnv: () => ipcRenderer.invoke('pet:env'),
-  movePet: (x, y) => ipcRenderer.invoke('pet:move', x, y),
+  movePet: async (x, y) => {
+    const applied = await ipcRenderer.invoke('pet:move', x, y)
+    // 主进程会把真正生效的位置回过来（被工作区夹住时和请求值不同），渲染层据此重新锚定
+    return applied && typeof applied === 'object' ? applied : null
+  },
   onPetTapped(callback) {
     const listener = (_event: unknown, stats: PetStats) => callback(stats)
     ipcRenderer.on('pet:tapped', listener)
