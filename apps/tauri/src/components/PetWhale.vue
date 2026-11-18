@@ -13,8 +13,12 @@
  *
  * 抛掷照抄 Coopanion 的思路：它的宠物窗口铺满整个屏幕，所以"扔出屏幕"时是靠画布里的
  * 撞墙反弹（`body.js` 的 air 分支：`if (pet.x < minX()) pet.vx = Math.abs(pet.vx) * .55`）
- * 让角色弹回来。我们的窗口本身就会跑出屏幕，于是把这套物理搬到窗口层面：松手后带初速度
- * 飞、撞到工作区边缘按 0.55 反弹、落地后自己走回原位。
+ * 让角色弹回来。我们的窗口只有 210×266，于是把这套物理搬到窗口层面：松手后带初速度飞、
+ * 撞到工作区上/左/右三边按 0.55 反弹、落到底边（任务栏之上）后：
+ *   - 摔得狠（冲击 > DIZZY_IMPACT）→ 调 body 的 dizzy 演三秒蝴蝶结眼 + 甩头，醒来再走回去；
+ *   - 轻轻放下 → 直接走回去。
+ * 走回去时窗口负责位移，身体只播放步伐（body.js 的 walkInPlace 补丁），
+ * 拖动时窗口负责位移，身体只播放歪斜（body.js 的 setTilt 补丁）。
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { createBody } from '../whale/body.js'
@@ -57,6 +61,10 @@ let vx = 0
 let vy = 0
 /** 落地后自己走回原位 */
 let walking = false
+/** 本次飞行的最大落地冲击速度（像素/秒） */
+let impact = 0
+/** 晕倒要持续到什么时候（performance.now 毫秒），0 表示没在晕 */
+let dizzyUntil = 0
 
 const S = 0.854
 const FLOOR = 0.92
@@ -70,7 +78,11 @@ const LAND_VX = 90
 /** 贴地滑行的摩擦系数（越大停得越快） */
 const FRICTION = 3.2
 /** 走回去的速度（像素/秒） */
-const WALK_SPEED = 260
+const WALK_SPEED = 150
+/** 落地冲击超过这个值就晕（body.js 里 land() 用 1000 作为 throw 的阈值） */
+const DIZZY_IMPACT = 900
+/** 晕倒时长：body.js 的 dizzy 是 2.4s 晃 + 0.6s 甩头 */
+const DIZZY_TIME = 3000
 
 function stageBounds() {
   const el = stage.value
@@ -174,7 +186,10 @@ function tick(now: number) {
     return
   }
   if (flying) stepFlight(dt)
-  else if (walking) stepWalk(dt)
+  else if (dizzyUntil && now >= dizzyUntil) {
+    dizzyUntil = 0
+    startWalkHome()
+  } else if (walking) stepWalk(dt)
   frame = requestAnimationFrame(tick)
 }
 
@@ -198,6 +213,8 @@ function stepFlight(dt: number) {
     vy = Math.abs(vy) * BOUNCE
   } else if (y > maxY) {
     y = maxY
+    // 记下落地的冲击速度：够狠就会晕
+    impact = Math.max(impact, Math.abs(vy))
     vy = -Math.abs(vy) * BOUNCE
     if (Math.abs(vy) < LAND_VY) vy = 0
   }
@@ -210,11 +227,27 @@ function stepFlight(dt: number) {
       vx = 0
       flying = false
       place(x, y)
-      startWalkHome()
+      land(impact)
       return
     }
   }
   place(x, y)
+}
+
+/** 落地：甩得狠先晕三秒（蝴蝶结眼 + 甩头），不然直接走回原位 */
+function land(impactSpeed: number) {
+  const hard = impactSpeed > DIZZY_IMPACT
+  impact = 0
+  if (hard) {
+    dizzyUntil = performance.now() + DIZZY_TIME
+    try {
+      body?.do?.('dizzy')
+    } catch {
+      /* 没有这个词就只是没有晕倒动作，三秒后照样走回去 */
+    }
+    return
+  }
+  startWalkHome()
 }
 
 function startWalkHome() {
@@ -222,13 +255,14 @@ function startWalkHome() {
   if (Math.hypot(target.x - pos.x, target.y - pos.y) < 12) return
   walking = true
   try {
-    body?.do?.('run')
+    // 窗口负责位移，身体只播放步伐（见 whale/body.js 的 walkInPlace 补丁）
+    body?.walkInPlace?.(true, WALK_SPEED)
   } catch {
-    /* 身体不认识这个词就只是没有跑动动作，窗口照样回家 */
+    /* 旧版 body 没有这个补丁时窗口照样回家，只是没有走路动作 */
   }
 }
 
-/** 自己走回原位：窗口平移，身体同时跑起来 */
+/** 自己走回原位：窗口平移，身体同时走起来 */
 function stepWalk(dt: number) {
   const target = placeToReturn()
   const dx = target.x - pos.x
@@ -237,6 +271,7 @@ function stepWalk(dt: number) {
   if (dist < 6) {
     walking = false
     try {
+      body?.walkInPlace?.(false)
       body?.do?.('stand')
     } catch {
       /* 同上 */
@@ -268,6 +303,15 @@ function throwVelocity() {
   return { x: ((b.x - a.x) * 1000) / dt, y: ((b.y - a.y) * 1000) / dt }
 }
 
+/** 最近两点的瞬时速度，用来驱动身体的歪斜 */
+function instantVelocity() {
+  if (samples.length < 2) return { x: 0, y: 0 }
+  const a = samples[samples.length - 2]
+  const b = samples[samples.length - 1]
+  const dt = Math.max(8, b.t - a.t)
+  return { x: ((b.x - a.x) * 1000) / dt, y: ((b.y - a.y) * 1000) / dt }
+}
+
 function onDown(e: PointerEvent) {
   if (!body) return
   try {
@@ -275,11 +319,18 @@ function onDown(e: PointerEvent) {
   } catch {
     /* 合成事件没有真实指针，抓不住就算了，不影响后面的位置计算 */
   }
-  // 抓的时候把飞行/回家打断，不然手一按窗口还在自己跑
+  // 抓的时候把飞行/回家/晕倒打断，不然手一按窗口还在自己跑
   flying = false
   walking = false
+  dizzyUntil = 0
+  impact = 0
   vx = 0
   vy = 0
+  try {
+    body.setTilt?.(null)
+  } catch {
+    /* 忽略 */
+  }
   const point = toStage(e)
   pressing = true
   dragging = false
@@ -303,6 +354,13 @@ function onMove(e: PointerEvent) {
     emit('grab')
   }
   place(base.x + dx, base.y + dy)
+  // 身体跟着甩动歪斜：窗口自己搬，指针速度只喂给 body 的倾斜角（见 whale/body.js 的 setTilt 补丁）
+  const v = instantVelocity()
+  try {
+    body.setTilt?.(v.x * 0.035)
+  } catch {
+    /* 旧版 body 没有这个补丁时忽略 */
+  }
 }
 
 function onUp(e: PointerEvent) {
@@ -313,14 +371,26 @@ function onUp(e: PointerEvent) {
     const v = throwVelocity()
     emit('drop')
     samples = []
+    try {
+      body.setTilt?.(null)
+    } catch {
+      /* 忽略 */
+    }
     if (Math.hypot(v.x, v.y) > 520) {
       // 甩出去：给窗口一个初速度，剩下的交给重力与反弹
       vx = Math.max(-1800, Math.min(1800, v.x * 0.9))
       vy = Math.max(-2400, Math.min(600, v.y * 0.9))
+      impact = 0
       flying = true
+      try {
+        // 空中扑腾两下鳍（body 的 flap 是个短动作，够覆盖下落这段）
+        body.do?.('flap')
+      } catch {
+        /* 忽略 */
+      }
     } else {
       // 慢慢放下：原地落地，然后自己走回原位
-      startWalkHome()
+      land(0)
     }
   } else {
     body.pointer('up', toStage(e))
@@ -336,6 +406,21 @@ onMounted(() => {
   ;(window as unknown as Record<string, unknown>).__petState = () => ({
     flying,
     walking,
+    dizzy: dizzyUntil > 0,
+    mode: (() => {
+      try {
+        return body?.state?.mode ?? null
+      } catch {
+        return null
+      }
+    })(),
+    tilt: (() => {
+      try {
+        return body?.state?.tilt ?? null
+      } catch {
+        return null
+      }
+    })(),
     pos: { ...pos },
     area: { ...area },
     win: { ...win },

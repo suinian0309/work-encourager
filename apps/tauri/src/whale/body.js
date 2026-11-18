@@ -402,6 +402,19 @@ export function createPet(els, opts) {
         break;
       }
       case 'walk': case 'run': {
+        // [patch] the window moves the pet on screen, so the walk only plays the steps here
+        if (pet.holdWalk) {
+          const v = pet.holdSpeed ?? 78;
+          // the cadence follows the window's speed, so the feet do not slide
+          rate = clamp(v / 37, 1.4, 5);
+          strideT = 10; liftT = 8; bobT = 3; leanT = 4;
+          pet.speed = v;
+          pet.phase += Math.PI * 2 * rate * dt;
+          lookT = [3, 1];
+          const halfW = Math.floor(pet.phase / Math.PI);
+          if (halfW !== pet.lastHalf) { play('step', 'move', false, halfW & 1); pet.lastHalf = halfW; }
+          break;
+        }
         // held still: the walk waits where it is, standing, and goes on once released
         if (still) { pet.speed = 0; lookT = track(); break; }
         const run = m === 'run', d = pet.target - pet.x, dy = pet.targetY - pet.gy, dist = Math.hypot(d, dy), dir = Math.sign(d) || pet.facing;
@@ -576,6 +589,9 @@ export function createPet(els, opts) {
       return { ...e, rx: d[0], ry: d[1], dx: d[2], dy: d[3] };
     });
     pet.blushK = lerp(pet.blushK, fc.blush || 0, ease(6, dt));
+
+    // [patch] a window-level drag carries its own velocity, so it may drive the tilt directly
+    if (pet.tiltOverride != null) tiltT = pet.tiltOverride;
 
     // springs & easing
     pet.sqv += ((sqT - pet.sq) * 280 - pet.sqv * 14) * dt;
@@ -880,6 +896,16 @@ export function createPet(els, opts) {
   return {
     pet, step, render, resize, act, setExpr, doWord, walkTo, stopWalk, toStage, hitPet, busy, layout,
     pointerDown, pointerMove, pointerUp, pointerLeave, dropAt, shiftDrag,
+    /** [patch] window-level drag: drive the body's tilt (degrees, clamped to ±40) without pointer events. */
+    setTilt(v) { pet.tiltOverride = v == null ? null : clamp(v, -40, 40); },
+    /** [patch] walk on the spot while the window itself carries the pet across the screen. */
+    walkInPlace(on, speed) {
+      pet.holdWalk = !!on;
+      if (on) {
+        pet.holdSpeed = Number.isFinite(speed) && speed > 0 ? speed : 78;
+        if (pet.mode !== 'walk' && pet.mode !== 'run') doWord('walk');
+      }
+    },
     get pressing() { return !!press; },
     /** Pressed, carried, airborne, walking, running, dancing, turning round, or in a short gesture (nod, wave, bow…): motion that frames far apart show as jumps. */
     get moving() {
@@ -992,6 +1018,11 @@ export function createBody(host, opts) {
     },
     drop: ctl.dropAt,
     shift: ctl.shiftDrag,
+    /** [patch] the window carries the pet, so the page drives the tilt (degrees, ±40) and the steps itself. */
+    setTilt(v) { ctl.setTilt(v); },
+    walkInPlace(on) { ctl.walkInPlace(on); },
+    /** [patch] read-only view of the body's own state, for probes and the page. */
+    get state() { return ctl.pet; },
     /** Puts a body that is standing at stage x, turned to `facing` (1 right, -1 left); a free body also on ground line `y`. */
     place(x, facing, y) {
       if (ctl.pet.mode === 'drag' || ctl.pet.mode === 'air') return;

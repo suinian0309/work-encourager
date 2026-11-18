@@ -63,33 +63,62 @@ const result = await pet.eval(`(async () => {
   const grab = (x, y) => fire('pointerdown', x, y)
   const move = (x, y) => fire('pointermove', x, y)
   const release = (x, y) => fire('pointerup', x, y)
+  const wait = (ms) => new Promise(r => setTimeout(r, ms))
 
   const start = { x: env0.x, y: env0.y }
   grab(start.x + 80, start.y + 120)
-  await new Promise(r => setTimeout(r, 80))
+  await wait(80)
   let x = start.x + 80
   let y = start.y + 120
-  for (let i = 0; i < 10; i++) {
-    x += 90
-    y += 26
+  let maxTilt = 0
+  // 先往左上角甩（抬高一点，落地才有冲击速度），再往右下甩出
+  for (let i = 0; i < 8; i++) {
+    x -= 40
+    y -= 70
     move(x, y)
-    await new Promise(r => setTimeout(r, 16))
+    await wait(40)
+    const st = window.__petState ? window.__petState() : null
+    if (st && typeof st.tilt === 'number') maxTilt = Math.max(maxTilt, Math.abs(st.tilt))
+  }
+  for (let i = 0; i < 8; i++) {
+    x += 120
+    y += 40
+    move(x, y)
+    await wait(30)
+    const st = window.__petState ? window.__petState() : null
+    if (st && typeof st.tilt === 'number') maxTilt = Math.max(maxTilt, Math.abs(st.tilt))
   }
   release(x, y)
 
   const samples = []
-  for (let i = 0; i < 130; i++) {
-    await new Promise(r => setTimeout(r, 100))
+  const modes = new Set()
+  let dizzySeen = false
+  let walkSeen = false
+  for (let i = 0; i < 150; i++) {
+    await wait(100)
     const e = await api.getPetEnv()
-    samples.push({ x: e.x, y: e.y, st: window.__petState ? window.__petState() : null })
+    const st = window.__petState ? window.__petState() : null
+    if (st) {
+      if (st.dizzy) dizzySeen = true
+      if (st.walking) walkSeen = true
+      if (st.mode) modes.add(String(st.mode))
+    }
+    samples.push({ x: e.x, y: e.y, st })
   }
   const envEnd = await api.getPetEnv()
   const wa = envEnd.workArea
   const inside = samples.every(s => s.x >= wa.x && s.y >= wa.y && s.x + envEnd.width <= wa.x + wa.width && s.y + envEnd.height <= wa.y + wa.height)
-  const home = { x: wa.x + wa.width - envEnd.width - 40, y: wa.y + wa.height - envEnd.height - 80 }
   const tail = samples.slice(-8)
   const settled = tail.every(s => Math.hypot(s.x - env0.x, s.y - env0.y) < 14)
-  return { env0, samples: samples.filter((_, i) => i % 10 === 0).map(s => ({ x: s.x, y: s.y, flying: !!(s.st && s.st.flying), walking: !!(s.st && s.st.walking), home: s.st && s.st.home, area: s.st && s.st.area, win: s.st && s.st.win })), envEnd, inside, settled, home }
+  return {
+    env0,
+    maxTilt,
+    dizzySeen,
+    walkSeen,
+    modes: [...modes],
+    samples: samples.filter((_, i) => i % 10 === 0).map(s => ({ x: s.x, y: s.y, flying: !!(s.st && s.st.flying), walking: !!(s.st && s.st.walking), dizzy: !!(s.st && s.st.dizzy) })),
+    envEnd, inside, settled
+  }
 })()`)
 
 console.log(JSON.stringify({ clicked, ...result }, null, 2))

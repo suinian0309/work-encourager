@@ -1,6 +1,6 @@
 {
   "name": "work-encourager",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "private": true,
   "description": "上班鼓励器 · Electron 与 Tauri 双版本，共享同一套计算引擎",
   "packageManager": "pnpm@11.21.0",
