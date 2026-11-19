@@ -74,6 +74,10 @@ const WALK_SPEED = 150
 const DIZZY_TIME = 3000
 /** 松手速度超过这个值才算"扔"，否则只是挪了个位置 */
 const THROW_SPEED = 520
+/** 撞墙的弹性：0.62 差不多是"弹一下但明显变弱"，斜着扔能连着弹两三次 */
+const WALL_BOUNCE = 0.62
+/** 本班次内撞墙次数（调试用） */
+let bounces = 0
 
 function stageBounds() {
   const el = stage.value
@@ -185,9 +189,9 @@ function tick(now: number) {
 }
 
 /**
- * 抛掷：重力 + 撞边只停不弹。
- * 撞到上/左/右任何一边都只是把速度吃掉（所以它不会再弹回去），然后竖直落到底边；
- * 一碰到任务栏上沿就落地、立刻眩晕（body.js 的 dizzy 动作），晕完再自己走回扔出去之前的位置。
+ * 抛掷：重力 + 上/左/右三边弹性反弹，底边落地即晕。
+ * 弹一下损失 38% 的能量，所以斜着甩出去会像台球那样连着撞几下；
+ * 只有在撞到任务栏上沿（底边）时才落地——落地立刻眩晕（body.js 的 dizzy），晕完再走回原位。
  */
 function stepFlight(dt: number) {
   const maxX = area.x + area.width - win.width
@@ -197,19 +201,29 @@ function stepFlight(dt: number) {
   let y = pos.y + vy * dt
 
   if (x <= area.x) {
+    // 撞左边：横向速度反向并按弹性衰减，竖直分量保持（所以还能继续往上飞）
     x = area.x
-    vx = 0
+    if (vx < 0) {
+      vx = -vx * WALL_BOUNCE
+      bounces += 1
+    }
   } else if (x >= maxX) {
     x = maxX
-    vx = 0
+    if (vx > 0) {
+      vx = -vx * WALL_BOUNCE
+      bounces += 1
+    }
   }
   if (y <= area.y) {
-    // 撞到屏幕顶部：横向力度也一并吃掉，接着竖直落下
+    // 撞顶：竖直分量反向衰减，横向照旧（斜着扔会从顶上再弹回来）
     y = area.y
-    vy = Math.max(0, vy)
-    vx = 0
+    if (vy < 0) {
+      vy = -vy * WALL_BOUNCE
+      bounces += 1
+    }
   }
   if (y >= maxY) {
+    // 底边不弹：碰到任务栏就落地
     y = maxY
     flying = false
     place(x, y)
@@ -361,6 +375,7 @@ function onUp(e: PointerEvent) {
       vx = Math.max(-1800, Math.min(1800, v.x * 0.9))
       vy = Math.max(-2400, Math.min(600, v.y * 0.9))
       flying = true
+      bounces = 0
       try {
         // 空中扑腾两下鳍（body 的 flap 是个短动作，够覆盖下落这段）
         body.do?.('flap')
@@ -385,6 +400,7 @@ onMounted(() => {
   ;(window as unknown as Record<string, unknown>).__petState = () => ({
     flying,
     walking,
+    bounces,
     dizzy: dizzyUntil > 0,
     mode: (() => {
       try {
