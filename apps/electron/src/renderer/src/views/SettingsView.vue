@@ -19,6 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'saved', result: SaveSettingsResult): void
+  (e: 'applied'): void
   (e: 'toast', message: string): void
 }>()
 
@@ -47,6 +48,7 @@ async function onScaleInput(event: Event): Promise<void> {
 
 onMounted(() => {
   void loadPetScale()
+  liveReady = true
 })
 
 function clone(input: Settings): Settings {
@@ -65,6 +67,58 @@ const scopeMode = ref<'shift' | 'settled'>('shift')
 const scopeInfo = ref({ workedHours: '0.00', earnedText: '0.00' })
 const confirmDefaults = ref(false)
 const todayKey = toDateKey(new Date())
+
+/**
+ * 上下班时间是唯一「改了要等点保存」的字段：它决定整个班次的形状，
+ * 中途改动会把今天已经跑过的时间轴打断，所以留到保存时再谈生效范围。
+ * 其余字段（工资、工作日、休息、加班、目标、外观、小数位…）全部即时生效。
+ */
+const savedSnapshot = ref<Settings>(clone(props.initial))
+
+/** 即将写入的设置：其它字段用表单里的新值，上下班时间用「上一次已生效」的值 */
+function liveSettings(): Settings {
+  const next = clone(draft.value)
+  next.workStart = savedSnapshot.value.workStart
+  next.workEnd = savedSnapshot.value.workEnd
+  return next
+}
+
+function sameSettings(a: Settings, b: Settings): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
+let liveTimer: number | undefined
+let liveReady = false
+
+async function applyLive(): Promise<void> {
+  const payload = liveSettings()
+  if (sameSettings(payload, savedSnapshot.value)) return
+  const issues = validateSettings(payload)
+  errors.value = firstIssueMap(issues)
+  if (issues.length > 0) return
+  try {
+    const result = await window.workEncourager.saveSettings({
+      settings: payload,
+      applyToCurrentShift: true
+    })
+    if (!result.ok) {
+      errors.value = firstIssueMap(result.issues)
+      return
+    }
+    savedSnapshot.value = payload
+    emit('applied')
+  } catch (error) {
+    emit('toast', `保存失败：${(error as Error).message}`)
+  }
+}
+
+function scheduleLive(): void {
+  if (!liveReady) return
+  window.clearTimeout(liveTimer)
+  liveTimer = window.setTimeout(() => {
+    void applyLive()
+  }, 420)
+}
 
 const isMonthly = computed(() => draft.value.wageMode === 'monthly')
 const isDaily = computed(() => draft.value.wageMode === 'daily')
@@ -166,6 +220,13 @@ function restoreDefaults(): void {
   emit('toast', '已填入默认设置，点击保存后生效')
 }
 
+function cancel(): void {
+  window.clearTimeout(liveTimer)
+  draft.value = clone(savedSnapshot.value)
+  errors.value = {}
+  emit('close')
+}
+
 async function save(): Promise<void> {
   const issues = validateSettings(draft.value)
   errors.value = firstIssueMap(issues)
@@ -217,6 +278,7 @@ async function commitSave(applyToCurrentShift: boolean): Promise<void> {
       emit('toast', result.issues[0]?.message ?? '设置未保存，请检查输入')
       return
     }
+    savedSnapshot.value = clone(draft.value)
     emit('saved', result)
   } catch (error) {
     emit('toast', `保存失败：${(error as Error).message}`)
@@ -236,8 +298,10 @@ async function openDataFolder(): Promise<void> {
 watch(
   draft,
   () => {
-    if (Object.keys(errors.value).length === 0) return
-    errors.value = firstIssueMap(validateSettings(draft.value))
+    if (Object.keys(errors.value).length > 0) {
+      errors.value = firstIssueMap(validateSettings(draft.value))
+    }
+    scheduleLive()
   },
   { deep: true }
 )
@@ -875,9 +939,10 @@ watch(
     </section>
 
     <div class="settings-foot">
+      <p class="foot-live">上下班时间以外的改动都会立即生效，无需保存</p>
       <div class="foot-actions">
         <button type="button" class="btn btn-ghost" @click="confirmDefaults = true">恢复默认</button>
-        <button type="button" class="btn btn-ghost" @click="emit('close')">取消</button>
+        <button type="button" class="btn btn-ghost" @click="cancel">取消</button>
         <button type="button" class="btn btn-primary" :disabled="saving" @click="save">
           {{ saving ? '保存中…' : '保存' }}
         </button>
@@ -897,7 +962,7 @@ watch(
     <ConfirmDialog
       :open="confirmDefaults"
       title="恢复默认设置？"
-      message="会把表单填回默认值（日薪 120 元、周一至周五 09:00—17:00、午休不计薪）。仍需点击“保存”才会真正生效。"
+      message="会把表单填回默认值（日薪 120 元、周一至周五 09:00—17:00、午休不计薪）。工资与排班会立即生效，上下班时间仍需点击“保存”才应用。"
       confirm-text="恢复默认"
       @confirm="restoreDefaults"
       @cancel="confirmDefaults = false"
@@ -1230,5 +1295,12 @@ watch(
 .pet-danger {
   color: var(--danger, #b4574f);
   border-color: var(--danger-line, rgba(180, 87, 79, 0.32));
+}
+
+.foot-live {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  color: var(--text-soft, #8b918d);
+  text-align: center;
 }
 </style>

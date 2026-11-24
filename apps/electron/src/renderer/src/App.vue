@@ -110,6 +110,18 @@ async function togglePet(): Promise<void> {
   }
 }
 
+async function handleApplied(): Promise<void> {
+  // 设置页里除上下班时间外的改动会即时落盘，这里只把主界面数据同步过来
+  try {
+    const data = await window.workEncourager.bootstrap()
+    bootstrapped.value = data
+    state.value = data.state
+    applyTheme(data.settings.theme)
+  } catch {
+    /* 即时生效的回读失败就别打扰用户，主界面下一次轮询会自己刷新 */
+  }
+}
+
 async function handleSaved(result: SaveSettingsResult): Promise<void> {
   view.value = 'main'
   try {
@@ -223,6 +235,7 @@ onBeforeUnmount(() => {
         :data-path="bootstrapped.dataPath"
         @close="view = 'main'"
         @saved="handleSaved"
+        @applied="handleApplied"
         @toast="showToast"
       />
       <HistoryView
