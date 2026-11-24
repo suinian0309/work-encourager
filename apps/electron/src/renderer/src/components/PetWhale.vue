@@ -62,7 +62,13 @@ let walking = false
 /** 晕倒要持续到什么时候（performance.now 毫秒），0 表示没在晕 */
 let dizzyUntil = 0
 
-/** 100% 比例下的基准缩放；实际 = 基准 × props.scale（设置页滑杆 60%–140%） */
+/**
+ * 100% 比例下的基准缩放：实际 = 基准 × props.scale（设置页滑杆 60%–140%）。
+ *
+ * 0.854 是按墨迹实测的：鲸鱼墨迹约 187×247 模型单位，舞台 198×240 时留一成上下边距。
+ * 1.4.7 之前滑杆"只缩外框"的真正原因是只调了 layout()、没让 body 重新读 bounds，
+ * S 一直停在挂载时的值——见下面的 applyScale()。
+ */
 const BASE_S = 0.854
 let S = BASE_S * (props.scale ?? 0.8)
 const FLOOR = 0.92
@@ -143,6 +149,20 @@ async function syncEnv(): Promise<void> {
   }
 }
 
+/**
+ * 比例变了：必须让 body 重新读一次 bounds（S/W/H 都在 bounds 里），再排版。
+ * 只调 layout() 是不会更新 S 的——1.4.7 之前滑杆只改了窗口、角色一直按首次的 S 画，看着就是"只缩了透明框"。
+ */
+function applyScale() {
+  if (!body) return
+  try {
+    body.resize?.()
+    body.layout?.()
+  } catch {
+    /* 旧版 body 没有这些方法时忽略 */
+  }
+}
+
 async function start() {
   await document.fonts?.ready?.catch?.(() => {})
   const el = stage.value
@@ -162,6 +182,7 @@ async function start() {
       start: { enter: 'drop' }
     }
     body = await createBody(host, { figure })
+    applyScale()
     emit('ready')
     last = performance.now()
     frame = requestAnimationFrame(tick)
@@ -250,6 +271,8 @@ function startWalkHome() {
   if (Math.hypot(target.x - pos.x, target.y - pos.y) < 12) return
   walking = true
   try {
+    // 先转身再迈步，免得第一步迈在反方向
+    if (Math.abs(target.x - pos.x) > 1) body?.setFacing?.(target.x > pos.x ? 1 : -1)
     // 窗口负责位移，身体只播放步伐（见 whale/body.js 的 walkInPlace 补丁）
     body?.walkInPlace?.(true, WALK_SPEED)
   } catch {
@@ -273,6 +296,12 @@ function stepWalk(dt: number) {
     }
     place(target.x, target.y)
     return
+  }
+  // 走在窗口层上，body 自己不知道往哪走：把方向告诉她，否则"走回原位"看着是倒着走
+  try {
+    if (Math.abs(dx) > 1) body?.setFacing?.(dx > 0 ? 1 : -1)
+  } catch {
+    /* 旧版 body 没有这个补丁时忽略 */
   }
   const step = Math.min(dist, WALK_SPEED * dt)
   place(pos.x + (dx / dist) * step, pos.y + (dy / dist) * step)
@@ -377,6 +406,12 @@ function onUp(e: PointerEvent) {
       flying = true
       bounces = 0
       try {
+        // 飞出去时朝行进方向，落地后按回家的方向再转一次（见 stepWalk）
+        if (Math.abs(vx) > 20) body.setFacing?.(vx > 0 ? 1 : -1)
+      } catch {
+        /* 旧版 body 没有这个补丁时忽略 */
+      }
+      try {
         // 空中扑腾两下鳍（body 的 flap 是个短动作，够覆盖下落这段）
         body.do?.('flap')
       } catch {
@@ -393,7 +428,14 @@ function onUp(e: PointerEvent) {
   dragging = false
 }
 
+/** 窗口自身尺寸变了（比例滑杆之外的情况）：重新读 bounds，别让角色停在旧尺度上 */
+function onWindowResize() {
+  applyScale()
+  void syncEnv()
+}
+
 onMounted(() => {
+  window.addEventListener('resize', onWindowResize)
   void start()
   void syncEnv()
   // 调试用：探针通过 CDP 读这里的内部状态（不影响正常运行）
@@ -417,6 +459,35 @@ onMounted(() => {
       }
     })(),
     scale: S,
+    stride: (() => {
+      try {
+        return body?.state?.stride ?? null
+      } catch {
+        return null
+      }
+    })(),
+    phase: (() => {
+      try {
+        return body?.state?.phase ?? null
+      } catch {
+        return null
+      }
+    })(),
+    facing: (() => {
+      try {
+        return body?.state?.faceVis ?? null
+      } catch {
+        return null
+      }
+    })(),
+    feet: (() => {
+      try {
+        const f = body?.state?.feet
+        return f ? f.map((p: number[]) => [Math.round(p[0]), Math.round(p[1])]) : null
+      } catch {
+        return null
+      }
+    })(),
     pos: { ...pos },
     area: { ...area },
     win: { ...win },
@@ -429,17 +500,14 @@ watch(
   (value) => {
     const next = Number(value)
     S = BASE_S * (Number.isFinite(next) && next > 0 ? next : 0.8)
-    try {
-      body?.layout?.()
-    } catch {
-      /* 旧版 body 没有 layout 就等下一次 resize */
-    }
+    applyScale()
     // 窗口尺寸跟着比例变了：把 pos/area/win 重新同步，免得下一次抛掷用旧边界算碰撞
     void syncEnv()
   }
 )
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWindowResize)
   disposed = true
   cancelAnimationFrame(frame)
   body?.dispose?.()

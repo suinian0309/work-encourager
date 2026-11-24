@@ -898,11 +898,19 @@ export function createPet(els, opts) {
     pointerDown, pointerMove, pointerUp, pointerLeave, dropAt, shiftDrag,
     /** [patch] window-level drag: drive the body's tilt (degrees, clamped to ±40) without pointer events. */
     setTilt(v) { pet.tiltOverride = v == null ? null : clamp(v, -40, 40); },
+    /** [patch] the window carries the pet across the screen, so the page says which way it walks (1 right, -1 left). */
+    setFacing(f) { if (f === 1 || f === -1) pet.facing = f; },
     /** [patch] walk on the spot while the window itself carries the pet across the screen. */
     walkInPlace(on, speed) {
       pet.holdWalk = !!on;
       if (on) {
         pet.holdSpeed = Number.isFinite(speed) && speed > 0 ? speed : 78;
+        // [patch] start on a full stride pose: the step length eases in over ~0.3s, and without this the first
+        // steps of a walk look like both legs sliding together (the phase also idles on a multiple of PI,
+        // which is a legs-together frame)
+        pet.stride = 10; pet.lift = 8; pet.bob = 3;
+        pet.phase = Math.PI / 2;
+        pet.lastHalf = Math.floor(pet.phase / Math.PI);
         if (pet.mode !== 'walk' && pet.mode !== 'run') doWord('walk');
       }
     },
@@ -1020,6 +1028,8 @@ export function createBody(host, opts) {
     shift: ctl.shiftDrag,
     /** [patch] the window carries the pet, so the page drives the tilt (degrees, ±40) and the steps itself. */
     setTilt(v) { ctl.setTilt(v); },
+    /** [patch] which way the body faces while the window walks it home (1 right, -1 left). */
+    setFacing(f) { ctl.setFacing(f); },
     walkInPlace(on) { ctl.walkInPlace(on); },
     /** [patch] read-only view of the body's own state, for probes and the page. */
     get state() { return ctl.pet; },
