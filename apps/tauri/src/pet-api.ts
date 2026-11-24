@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { WorkEncouragerApi } from '@shared/api'
+import type { UpdateProgress } from '@shared/update'
 import { LocalService } from './service'
 import { parseDb } from './db'
 
@@ -96,6 +97,12 @@ export function createPetApi(): WorkEncouragerApi {
     },
     setPetScale: fail,
     /** 主窗口改完比例后，Rust 会 emit 'pet-scale'，宠物页据此实时重新排版 */
+  getAppVersion: async () => '',
+  checkUpdate: fail,
+  downloadUpdate: fail,
+  installUpdate: fail,
+  openReleasePage: fail,
+  onUpdateProgress: () => () => undefined,
     onPetScaleChanged: (callback: (scale: number) => void) => {
       let stop: (() => void) | null = null
       let disposed = false

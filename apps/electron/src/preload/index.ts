@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { WorkEncouragerApi } from '@shared/api'
 import type { AppState, PetStats, Settings } from '@shared/types'
+import type { UpdateProgress } from '@shared/update'
 
 const api: WorkEncouragerApi = {
   bootstrap: () => ipcRenderer.invoke('app:bootstrap'),
@@ -63,6 +64,16 @@ const api: WorkEncouragerApi = {
     const listener = () => callback()
     ipcRenderer.on('history:updated', listener)
     return () => ipcRenderer.removeListener('history:updated', listener)
+  },
+  getAppVersion: () => ipcRenderer.invoke('update:version'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  openReleasePage: (url: string) => ipcRenderer.invoke('update:open-release', url),
+  onUpdateProgress(callback: (progress: UpdateProgress) => void) {
+    const listener = (_event: unknown, progress: UpdateProgress) => callback(progress)
+    ipcRenderer.on('update:progress', listener)
+    return () => ipcRenderer.removeListener('update:progress', listener)
   }
 }
 

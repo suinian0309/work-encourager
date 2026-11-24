@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { WorkEncouragerApi } from '@shared/api'
+import type { UpdateProgress } from '@shared/update'
 import { LocalService } from './service'
 import { parseDb } from './db'
 
@@ -75,6 +76,12 @@ export function createFloatApi(): WorkEncouragerApi {
     movePet: fail,
     getPetScale: fail,
     setPetScale: fail,
+  getAppVersion: async () => '',
+  checkUpdate: fail,
+  downloadUpdate: fail,
+  installUpdate: fail,
+  openReleasePage: fail,
+  onUpdateProgress: () => () => undefined,
     onPetScaleChanged: () => () => undefined
   }
 }

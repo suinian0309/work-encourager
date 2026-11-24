@@ -22,6 +22,7 @@ import { importLive2dModel, removeLive2dModel } from './live2d-import'
 import type { PetStyle, SaveSettingsPayload } from '@shared/types'
 import { latestSettingsEntry } from '@shared/engine'
 import { toDateKey } from '@shared/date'
+import { registerUpdateIpc } from './update'
 
 // Live2D 模型走自定义协议加载：文件名是 ASCII，避免 file:// 与中文路径在打包后失效
 protocol.registerSchemesAsPrivileged([
@@ -771,6 +772,7 @@ function bootstrap(): void {
 
     nativeTheme.themeSource = currentSettings().theme
     registerLive2dProtocol()
+    registerUpdateIpc()
 
     // 无界面导入自检：WORK_ENC_IMPORT_TEST=<model3.json 或目录>，把结果写到 WORK_ENC_IMPORT_OUT
     const importTest = process.env['WORK_ENC_IMPORT_TEST']

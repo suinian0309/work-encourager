@@ -9,6 +9,7 @@ import { validateSettings } from '@shared/validation'
 import { settleRecords } from '@shared/settlement'
 import { shouldFireShiftReminder } from '@shared/reminders'
 import { resolveEffectiveFrom } from '@shared/effective'
+import { compareVersions, parseVersion, pickInstaller } from '@shared/update'
 
 const DAY = '2026-11-10' // 星期二
 
@@ -564,5 +565,35 @@ describe('下班提醒', () => {  const settings = defaultSettings()
     expect(shouldFireShiftReminder(settings, shift, at(DAY, 18, 0), undefined)).toBe(false)
     const zero = { ...settings, reminderMinutes: 0 }
     expect(shouldFireShiftReminder(zero, shift, at(DAY, 17, 2), undefined)).toBe(true)
+  })
+})
+
+describe('版本与更新', () => {
+  it('把版本号拆成数字，v 前缀与非数字段都能吃下', () => {
+    expect(parseVersion('v1.4.10')).toEqual([1, 4, 10])
+    expect(parseVersion('1.5')).toEqual([1, 5])
+    expect(parseVersion('v2.0.0-beta.1')).toEqual([2, 0, 0])
+  })
+
+  it('按数值比较而不是按字符串比较', () => {
+    expect(compareVersions('1.10.0', '1.9.9')).toBeGreaterThan(0)
+    expect(compareVersions('1.4.9', '1.5.0')).toBeLessThan(0)
+    expect(compareVersions('v1.5.0', '1.5.0')).toBe(0)
+    expect(compareVersions('1.5', '1.5.0')).toBe(0)
+  })
+
+  it('Electron 版挑 Electron 安装包，Tauri 版挑 Tauri 安装包', () => {
+    const assets = [
+      { name: 'WorkEncourager-Electron-Setup-1.5.0.msi', size: 111, url: 'a' },
+      { name: 'WorkEncourager-Tauri-Setup-1.5.0.msi', size: 4, url: 'b' },
+      { name: 'WorkEncourager-Electron-1.5.0.zip', size: 130, url: 'c' }
+    ]
+    expect(pickInstaller(assets, 'electron')?.name).toBe('WorkEncourager-Electron-Setup-1.5.0.msi')
+    expect(pickInstaller(assets, 'tauri')?.name).toBe('WorkEncourager-Tauri-Setup-1.5.0.msi')
+  })
+
+  it('只有 zip 时不给安装包，避免下错文件', () => {
+    const assets = [{ name: 'WorkEncourager-Electron-1.5.0.zip', size: 130, url: 'c' }]
+    expect(pickInstaller(assets, 'electron')).toBeNull()
   })
 })

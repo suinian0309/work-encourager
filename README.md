@@ -163,6 +163,7 @@ cargo build --release --manifest-path apps/slint/Cargo.toml
 - **计数**：按自然日累加，和工资数据存在同一个 JSON：`petDaily`（每天几次）、`petTotal`（累计几次）；换天自动归零当天
 - **窗口**：位置随拖动记住，不占任务栏，**可以和浮窗、主窗口同时开着**
 - **托盘菜单**：「摸鱼小宠物（今日 N 次）」，随时可以收起
+- **提示与对话**：鼠标移上去才会浮现一行「今日 N 次，累计 M 次」（深灰细字，没有底框）；拎起来、放下、每 5 次摸鱼会冒一句台词，气泡在头顶，说话时角色往下让一点，不挡脸
 
 ### 它是怎么画出来的
 
@@ -172,6 +173,16 @@ cargo build --release --manifest-path apps/slint/Cargo.toml
 - 素材在 `assets/whale/`：`model.json`、`figure.json`、`tex/`、`feat/`、`outfits/`，共 90 个文件 2.73 MB，构建时随安装包一起发行
 - 实测 210×266 窗口下 60 fps（Electron 与 Tauri 都是），需要硬件加速
 - 形象与骨骼动画来自 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（AGPL-3.0），本项目按同一许可证分发，详见 [NOTICE.md](NOTICE.md)
+
+## 检查更新
+
+设置页最下面有「关于与更新」：
+
+- 显示当前版本，点「检查更新」比对 `https://github.com/suinian0309/work-encourager/releases` 上的最新版本
+- 有新版本时显示版本号与安装包体积，点「下载并安装」会把 MSI 下到 `%TEMP%\work-encourager-update`，再调用 Windows 安装程序覆盖安装（`msiexec /i ... /passive /norestart`），装完自动退出当前进程
+- 更新只改程序本体：设置、历史日结、摸鱼计数都在本机数据目录里，不会被覆盖
+- GitHub 未登录的 API 每小时只给 60 次，一旦被限流会自动退回 `releases/latest` 的重定向 + 稳定直链，界面上只会看到「有新版本」，不会因为限流就查不到
+- Electron 版走主进程 fetch，Tauri 版用系统自带的 `curl.exe`（Win10 1803+ 都有），后者不引入额外 HTTP 依赖，安装包还是 4.7 MB
 
 ## 项目结构
 
@@ -232,7 +243,8 @@ Tauri 复用系统 WebView2，而 WebView2 本身就是多进程 Chromium；Elec
 - [ ] 数据导入 / 导出
 - [ ] 更多统计视图（周、季度）
 - [ ] 开机自启
-- [ ] 代码签名与自动更新
+- [x] 应用内检查更新（1.5.0）
+- [ ] 代码签名
 
 ## 贡献
 

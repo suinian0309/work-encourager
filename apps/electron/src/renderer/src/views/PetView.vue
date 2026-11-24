@@ -103,23 +103,23 @@ onBeforeUnmount(() => {
     <div class="pet-stage" title="点一下摸鱼 +1 · 拖住可以拎起来">
       <div class="pet-bubble" :class="{ show: !!bubble }">{{ bubble }}</div>
 
-      <PetWhale
-        :scale="petScale"
-        @poke="tap"
-        @grab="onLift"
-        @drop="onDrop"
-        @error="(message) => (error = message)"
-      />
+      <div class="pet-figure" :class="{ down: !!bubble }">
+        <PetWhale
+          :scale="petScale"
+          @poke="tap"
+          @grab="onLift"
+          @drop="onDrop"
+          @error="(message) => (error = message)"
+        />
+      </div>
 
       <span v-for="item in floaters" :key="item.id" class="floater" :style="{ left: `${item.left}px` }">+1</span>
       <p v-if="error" class="pet-error">{{ error }}</p>
     </div>
 
     <div class="pet-pill">
-      <span>今日摸鱼</span>
-      <b class="num">{{ stats.today }}</b>
-      <span>次</span>
-      <span class="pet-pill-total">累计 {{ stats.total }}</span>
+      <span>今日 <b class="num">{{ stats.today }}</b> 次</span>
+      <span class="pet-pill-total">，累计 <b class="num">{{ stats.total }}</b> 次</span>
     </div>
   </div>
 </template>
@@ -172,9 +172,20 @@ onBeforeUnmount(() => {
   -webkit-app-region: no-drag;
 }
 
+.pet-figure {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.2s ease;
+}
+
+/* 说话时把角色整体下移一点，气泡就能待在头顶上方而不是盖在脸上 */
+.pet-figure.down {
+  transform: translateY(22px);
+}
+
 .pet-bubble {
   position: absolute;
-  top: 2px;
+  top: 0;
   left: 50%;
   z-index: 2;
   max-width: 152px;
@@ -248,9 +259,6 @@ onBeforeUnmount(() => {
 }
 
 .pet-pill-total {
-  margin-left: 4px;
-  padding-left: 6px;
-  border-left: 1px solid rgba(0, 0, 0, 0.14);
   color: #5c5c5c;
 }
 

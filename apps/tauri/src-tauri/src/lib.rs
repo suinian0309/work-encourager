@@ -13,6 +13,8 @@ use tauri::utils::config::AppDirectoriesOverride;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WindowEvent};
 use tauri_plugin_notification::NotificationExt;
 
+mod update;
+
 struct AppState {
   data_dir: PathBuf,
   fired: Mutex<HashSet<String>>,
@@ -1148,7 +1150,11 @@ pub fn run() {
       pet_apply_style,
       pet_apply_scale,
       pet_env,
-      move_pet_window
+      move_pet_window,
+      update::check_update,
+      update::download_update,
+      update::install_update,
+      update::open_release
     ])
     .setup(|app| {
       let data_dir = if let Some(dir) = std::env::var_os("WORK_ENC_DATA_DIR") {

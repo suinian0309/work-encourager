@@ -1,5 +1,27 @@
 # 更新日志
 
+## 1.5.0
+
+### 新增
+
+- **版本管理与检查更新**：设置页新增「关于与更新」分组，能看到当前版本、点「检查更新」比对 GitHub Release、直接下载并用 Windows 安装程序覆盖安装（设置与历史记录都在本机，不受影响）
+- 更新判断抽在 `packages/shared/update.ts`（版本比较 + 按 Electron / Tauri 挑安装包），下载与落盘放在各自的壳里：Electron 走主进程，Tauri 走 Rust
+- GitHub 未登录的 API 每小时只有 60 次，所以 API 一旦 403/失败会自动退回 `releases/latest` 的 302 重定向 + 稳定直链，限流时也照样能查到新版本
+
+### 改动
+
+- **宠物对话气泡移到头顶**：说话时角色整体下移 22px，气泡占住让出来的位置，不再盖住脸
+- **宠物提示条文案简化**：从「今日摸鱼 N 次 · 累计 M」改成「今日 N 次，累计 M 次」，去掉分隔线与胶囊底框
+- Tauri 侧更新用系统自带 `curl.exe`，不引入 reqwest，安装包体积仍是 4.7 MB
+- Electron 开发态版本号改从 `package.json` 读：`app.getVersion()` 在开发态返回的是 Electron 自己的 37.x
+
+### 验证
+
+- Electron：设置页显示 `v1.5.0`；点「检查更新」在 API 限流下走兜底路径，返回「有新版本 v1.4.9」并带上 106.4 MB 体积
+- Electron 下载：30 秒下完 106.4 MB，进度事件 `received/total` 推进到 100%，文件落在 `%TEMP%\work-encourager-update\`
+- Tauri：`check_update` 同样走兜底，设置页显示「有新版本 v1.4.9」
+- 宠物：拎起时气泡 `opacity: 1`、rect `top 4 / bottom 27.5`，角色 `translateY(22px)`，提示条为「今日 N 次，累计 M 次」
+
 ## 1.4.9
 
 ### 变更

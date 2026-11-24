@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { SaveSettingsResult, Settings } from '@shared/types'
 import { defaultSettings, WEEKDAY_SHORT } from '@shared/defaults'
 import { firstIssueMap, validateSettings } from '@shared/validation'
@@ -9,6 +9,7 @@ import { minutesToHHMM, parseHHMM, toDateKey } from '@shared/date'
 import AppIcon from '../components/AppIcon.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import SaveScopeDialog from '../components/SaveScopeDialog.vue'
+import type { UpdateInfo, UpdateState } from '@shared/update'
 
 const props = defineProps<{
   initial: Settings
@@ -46,8 +47,95 @@ async function onScaleInput(event: Event): Promise<void> {
   }
 }
 
+/** 版本与更新：检查、下载、安装，只在设置页里手动触发 */
+const appVersion = ref('')
+const updateState = ref<UpdateState>('idle')
+const updateInfo = ref<UpdateInfo | null>(null)
+const updateError = ref('')
+const updateNote = ref('')
+const updatePercent = ref(0)
+let offUpdate: (() => void) | null = null
+
+function formatSize(bytes: number): string {
+  if (!bytes) return ''
+  const mb = bytes / 1024 / 1024
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`
+}
+
+async function loadVersion(): Promise<void> {
+  try {
+    appVersion.value = await window.workEncourager.getAppVersion()
+  } catch {
+    appVersion.value = ''
+  }
+}
+
+async function checkForUpdate(): Promise<void> {
+  if (updateState.value === 'checking' || updateState.value === 'downloading') return
+  updateState.value = 'checking'
+  updateError.value = ''
+  updateNote.value = ''
+  try {
+    const info = await window.workEncourager.checkUpdate()
+    updateInfo.value = info
+    updateState.value = info.hasUpdate ? 'available' : 'latest'
+    if (!info.hasUpdate) updateNote.value = '已经是最新版本'
+    else if (!info.asset) updateNote.value = '这个版本没有 Windows 安装包，请到 Release 页手动下载'
+  } catch (error) {
+    updateState.value = 'idle'
+    updateError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function downloadAndInstall(): Promise<void> {
+  if (updateState.value !== 'available') return
+  updateState.value = 'downloading'
+  updateError.value = ''
+  updatePercent.value = 0
+  updateNote.value = '正在下载安装包…'
+  try {
+    const result = await window.workEncourager.downloadUpdate()
+    if (!result.ok) {
+      updateState.value = 'available'
+      updateError.value = result.message || '下载失败'
+      updateNote.value = ''
+      return
+    }
+    updateState.value = 'ready'
+    updateNote.value = '下载完成，正在启动安装程序…'
+    const started = await window.workEncourager.installUpdate()
+    if (!started) {
+      updateState.value = 'available'
+      updateError.value = '没能启动安装程序'
+    }
+  } catch (error) {
+    updateState.value = 'available'
+    updateError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function openRelease(): Promise<void> {
+  const url = updateInfo.value?.pageUrl || 'https://github.com/suinian0309/work-encourager/releases'
+  try {
+    await window.workEncourager.openReleasePage(url)
+  } catch {
+    emit('toast', '打开下载页失败')
+  }
+}
+onBeforeUnmount(() => {
+  offUpdate?.()
+})
+
 onMounted(() => {
   void loadPetScale()
+  void loadVersion()
+  offUpdate = window.workEncourager.onUpdateProgress((progress) => {
+    if (progress.phase === 'download' && progress.total > 0) {
+      updatePercent.value = Math.min(99, Math.round((progress.received / progress.total) * 100))
+    } else if (progress.percent > 0) {
+      updatePercent.value = Math.min(99, progress.percent)
+    }
+  })
   liveReady = true
 })
 
@@ -938,6 +1026,58 @@ watch(
       </div>
     </section>
 
+    <section class="card settings-card fade-in">
+      <div class="section-head">
+        <h2 class="section-title">
+          <AppIcon name="spark" :size="14" />
+          关于与更新
+        </h2>
+        <span class="section-hint">检查 GitHub 上的新版本</span>
+      </div>
+
+      <div class="update-row">
+        <div class="update-main">
+          <span class="update-version">当前版本 v{{ appVersion || '—' }}</span>
+          <span v-if="updateState === 'latest'" class="update-note">已是最新版本</span>
+          <span v-else-if="updateState === 'available'" class="update-note update-note--new">
+            有新版本 v{{ updateInfo?.latestVersion }}
+            <template v-if="updateInfo?.asset && updateInfo.asset.size"> · {{ formatSize(updateInfo.asset.size) }}</template>
+          </span>
+          <span v-else-if="updateState === 'downloading'" class="update-note">
+            {{ updateNote }}
+            <template v-if="updatePercent > 0"> {{ updatePercent }}%</template>
+          </span>
+          <span v-else-if="updateState === 'ready'" class="update-note">{{ updateNote }}</span>
+          <span v-else-if="updateNote" class="update-note">{{ updateNote }}</span>
+        </div>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          :disabled="updateState === 'checking' || updateState === 'downloading'"
+          @click="checkForUpdate"
+        >
+          {{ updateState === 'checking' ? '检查中…' : '检查更新' }}
+        </button>
+      </div>
+
+      <div v-if="updateState === 'downloading'" class="update-bar">
+        <span class="update-bar-fill" :style="{ width: updatePercent + '%' }" />
+      </div>
+
+      <div v-if="updateState === 'available'" class="update-actions">
+        <button type="button" class="btn btn-primary btn-sm" @click="downloadAndInstall">
+          下载并安装
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" @click="openRelease">打开下载页</button>
+      </div>
+
+      <p v-if="updateError" class="update-error">{{ updateError }}</p>
+
+      <p class="update-hint">
+        更新包直接来自本项目的 GitHub Release，下载后调用 Windows 安装程序覆盖安装，设置与历史记录都保留在本机。
+      </p>
+    </section>
+
     <div class="settings-foot">
       <p class="foot-live">上下班时间以外的改动都会立即生效，无需保存</p>
       <div class="foot-actions">
@@ -1297,5 +1437,69 @@ watch(
   font-size: 10.5px;
   color: var(--text-soft, #8b918d);
   text-align: center;
+}
+
+.update-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.update-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.update-version {
+  font-size: 12px;
+  color: var(--text, #464c48);
+  font-variant-numeric: tabular-nums;
+}
+
+.update-note {
+  font-size: 11px;
+  color: var(--text-soft, #8b918d);
+}
+
+.update-note--new {
+  color: var(--mint-deep, #2e5a47);
+}
+
+.update-bar {
+  margin-top: 8px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--mint-soft, #e4f3ea);
+  overflow: hidden;
+}
+
+.update-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--mint, #5cc49a);
+  transition: width 0.2s ease;
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.update-error {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--danger, #b4574f);
+}
+
+.update-hint {
+  margin: 9px 0 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--text-soft, #8b918d);
 }
 </style>

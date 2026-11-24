@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { AppState, BootstrapPayload, HistoryView, PetStats, PetStyle, SaveSettingsPayload, SaveSettingsResult, Settings } from '@shared/types'
 import type { Live2dImportResult, PetStyleState, WorkEncouragerApi } from '@shared/api'
+import type { UpdateDownloadResult, UpdateInfo, UpdateProgress } from '@shared/update'
 import { LocalService } from './service'
 import { parseDb } from './db'
 import { latestSettingsEntry } from '@shared/engine'
@@ -247,6 +248,50 @@ export class TauriApi implements WorkEncouragerApi {
   onSettingsApplied(callback: (settings: Settings) => void): () => void {
     this.settingsListeners.add(callback)
     return () => this.settingsListeners.delete(callback)
+  }
+
+  private pendingInstaller: string | null = null
+
+  async getAppVersion(): Promise<string> {
+    return invoke<string>('app_version')
+  }
+
+  async checkUpdate(): Promise<UpdateInfo> {
+    return invoke<UpdateInfo>('check_update')
+  }
+
+  async downloadUpdate(): Promise<UpdateDownloadResult> {
+    const info = await this.checkUpdate()
+    if (!info.hasUpdate) return { ok: false, message: '已经是最新版本' }
+    if (!info.asset) return { ok: false, message: '这个版本没有 Windows 安装包' }
+    const path = await invoke<string>('download_update', {
+      url: info.asset.url,
+      name: info.asset.name
+    })
+    return { ok: true, message: '下载完成', path }
+  }
+
+  async installUpdate(): Promise<boolean> {
+    const path = this.pendingInstaller
+    if (!path) return false
+    await invoke('install_update', { path })
+    return true
+  }
+
+  async openReleasePage(url: string): Promise<boolean> {
+    await invoke('open_release', { url })
+    return true
+  }
+
+  onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void {
+    let disposed = false
+    const stop = listen<UpdateProgress>('update-progress', (event) => {
+      if (!disposed) callback(event.payload)
+    })
+    return () => {
+      disposed = true
+      void stop.then((unlisten) => unlisten())
+    }
   }
 
   onHistoryUpdated(callback: () => void): () => void {

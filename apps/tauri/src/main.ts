@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import App from './App.vue'
 import './styles/base.css'
 import type { WorkEncouragerApi } from '@shared/api'
+import type { UpdateProgress } from '@shared/update'
 import { createTauriApi } from './tauri-api'
 
 function errorMessage(error: unknown): string {
@@ -63,6 +64,12 @@ function brokenApi(message: string): WorkEncouragerApi {
     movePet: fail,
     getPetScale: fail,
     setPetScale: fail,
+  getAppVersion: async () => '',
+  checkUpdate: fail,
+  downloadUpdate: fail,
+  installUpdate: fail,
+  openReleasePage: fail,
+  onUpdateProgress: () => () => undefined,
     onPetScaleChanged: () => () => undefined
   }
 }

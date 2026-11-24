@@ -1,3 +1,4 @@
+import type { UpdateDownloadResult, UpdateInfo, UpdateProgress } from './update'
 import type {
   AppState,
   BootstrapPayload,
@@ -65,6 +66,18 @@ export interface WorkEncouragerApi {
   setPetScale(scale: number): Promise<number>
   /** 设置页改了比例后，宠物窗靠这个回调实时缩放，不用重启 */
   onPetScaleChanged(callback: (scale: number) => void): () => void
+  /** 当前安装的版本号（1.4.9 这种） */
+  getAppVersion(): Promise<string>
+  /** 向 GitHub Releases 查最新版本；网络失败会抛错，由界面提示 */
+  checkUpdate(): Promise<UpdateInfo>
+  /** 下载上一步查到的安装包，进度走 onUpdateProgress */
+  downloadUpdate(): Promise<UpdateDownloadResult>
+  /** 静默安装下载好的包，随后应用会退出 */
+  installUpdate(): Promise<boolean>
+  /** 下载进度：下载与安装两个阶段共用 */
+  onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void
+  /** 在浏览器里打开 Release 页面 */
+  openReleasePage(url: string): Promise<boolean>
   onNavigate(callback: (target: 'settings' | 'history' | 'main') => void): () => void
   onTimerChanged(callback: (state: AppState) => void): () => void
   onSettingsApplied(callback: (settings: Settings) => void): () => void
