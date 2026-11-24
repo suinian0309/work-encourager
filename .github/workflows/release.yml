@@ -150,9 +150,9 @@ jobs:
 
           | 文件 | 版本 | 大小 | 说明 |
           | --- | --- | ---: | --- |
-          | \`WorkEncourager-Electron-Setup-${ver}.msi\` | Electron | \~102 MB | **推荐**：功能完整，自带运行时，私有内存约 127 MB |
-          | \`WorkEncourager-Electron-${ver}.zip\` | Electron | \~124 MB | 免安装压缩包 |
-          | \`WorkEncourager-Tauri-Setup-${ver}.msi\` | Tauri 2 | \~2 MB | 安装包最小，需要 WebView2，私有内存约 274 MB |
+          | \`WorkEncourager-Electron-Setup-${ver}.msi\` | Electron | \~106 MB | **推荐**：功能完整，自带运行时，私有内存约 127 MB |
+          | \`WorkEncourager-Electron-${ver}.zip\` | Electron | \~129 MB | 免安装压缩包 |
+          | \`WorkEncourager-Tauri-Setup-${ver}.msi\` | Tauri 2 | \~5 MB | 安装包最小，需要 WebView2，私有内存约 274 MB |
           | \`WorkEncourager-Slint-${ver}.exe\` | 原生 Rust | \~8 MB | 单文件，私有内存约 4.7 MB，界面较朴素 |
 
           ### 本次更新
